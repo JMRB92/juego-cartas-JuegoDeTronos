@@ -1,1 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Juego de Tronos - Juego de Cartas</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <main id="app">
+
+        <!-- ========================================= -->
+        <!-- PANTALLA INICIAL                          -->
+        <!-- ========================================= -->
+
+        <section id="pantalla-inicio" class="pantalla">
+
+            <div class="contenedor-inicio">
+
+                <div class="logo-juego">
+                    <div class="corona">♛</div>
+
+                    <h1>JUEGO DE TRONOS</h1>
+
+                    <p class="subtitulo">
+                        Juego de cartas
+                    </p>
+                </div>
+
+
+                <div class="menu-principal">
+
+                    <button
+                        id="btn-crear-partida"
+                        class="boton boton-principal">
+                        Crear partida
+                    </button>
+
+
+                    <button
+                        id="btn-unirse-partida"
+                        class="boton boton-secundario">
+                        Unirse a partida
+                    </button>
+
+                </div>
+
+
+                <p class="version">
+                    Versión de desarrollo
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- ========================================= -->
+        <!-- PANTALLA CREAR PARTIDA                    -->
+        <!-- ========================================= -->
+
+        <section
+            id="pantalla-crear"
+            class="pantalla pantalla-oculta">
+
+            <div class="contenedor">
+
+                <button
+                    id="btn-volver-inicio-crear"
+                    class="boton-volver">
+                    ← Volver
+                </button>
+
+
+                <h2>Crear partida</h2>
+
+
+                <div class="formulario">
+
+                    <label for="nombre-creador">
+                        Tu nombre
+                    </label>
+
+                    <input
+                        type="text"
+                        id="nombre-creador"
+                        placeholder="Escribe tu nombre"
+                        maxlength="20"
+                        autocomplete="off"
+                    >
+
+
+                    <label for="numero-jugadores">
+                        Número de jugadores
+                    </label>
+
+                    <select id="numero-jugadores">
+
+                        <option value="2">2 jugadores</option>
+                        <option value="3">3 jugadores</option>
+                        <option value="4">4 jugadores</option>
+                        <option value="5">5 jugadores</option>
+                        <option value="6">6 jugadores</option>
+                        <option value="7">7 jugadores</option>
+                        <option value="8">8 jugadores</option>
+
+                    </select>
+
+
+                    <label for="puntos-objetivo">
+                        Puntos para ganar
+                    </label>
+
+                    <input
+                        type="number"
+                        id="puntos-objetivo"
+                        value="5"
+                        min="1"
+                        max="20"
+                    >
+
+
+                    <p id="explicacion-puntos" class="ayuda">
+                        Por defecto: 5 puntos para 2–4 jugadores.
+                    </p>
+
+
+                    <button
+                        id="btn-generar-partida"
+                        class="boton boton-principal">
+                        Crear partida
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ========================================= -->
+        <!-- PANTALLA UNIRSE                           -->
+        <!-- ========================================= -->
+
+        <section
+            id="pantalla-unirse"
+            class="pantalla pantalla-oculta">
+
+            <div class="contenedor">
+
+                <button
+                    id="btn-volver-inicio-unirse"
+                    class="boton-volver">
+                    ← Volver
+                </button>
+
+
+                <h2>Unirse a partida</h2>
+
+
+                <div class="formulario">
+
+                    <label for="nombre-jugador">
+                        Tu nombre
+                    </label>
+
+                    <input
+                        type="text"
+                        id="nombre-jugador"
+                        placeholder="Escribe tu nombre"
+                        maxlength="20"
+                        autocomplete="off"
+                    >
+
+
+                    <label for="codigo-partida">
+                        Código de partida
+                    </label>
+
+                    <input
+                        type="text"
+                        id="codigo-partida"
+                        placeholder="Ejemplo: ABC123"
+                        maxlength="6"
+                        autocomplete="off"
+                        style="text-transform: uppercase;"
+                    >
+
+
+                    <button
+                        id="btn-unirse"
+                        class="boton boton-principal">
+                        Unirse
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ========================================= -->
+        <!-- LOBBY                                     -->
+        <!-- ========================================= -->
+
+        <section
+            id="pantalla-lobby"
+            class="pantalla pantalla-oculta">
+
+            <div class="contenedor">
+
+                <h2>Sala de juego</h2>
+
+                <div class="codigo-sala">
+
+                    <p>Código de partida</p>
+
+                    <strong id="codigo-sala">
+                        ABC123
+                    </strong>
+
+                    <button
+                        id="btn-copiar-codigo"
+                        class="boton-pequeno">
+                        Copiar código
+                    </button>
+
+                </div>
+
+
+                <h3>Jugadores</h3>
+
+                <ul id="lista-jugadores" class="lista-jugadores">
+                    <!-- Los jugadores aparecerán aquí -->
+                </ul>
+
+
+                <p id="estado-lobby" class="estado">
+                    Esperando jugadores...
+                </p>
+
+
+                <button
+                    id="btn-iniciar-partida"
+                    class="boton boton-principal"
+                    disabled>
+                    Iniciar partida
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- ========================================= -->
+        <!-- PANTALLA DE JUEGO                          -->
+        <!-- ========================================= -->
+
+        <section
+            id="pantalla-juego"
+            class="pantalla pantalla-oculta">
+
+            <div class="juego">
+
+                <header class="cabecera-juego">
+
+                    <div>
+                        Ronda:
+                        <strong id="numero-ronda">1</strong>
+                    </div>
+
+                    <div>
+                        Mazo:
+                        <strong id="cartas-restantes">0</strong>
+                    </div>
+
+                </header>
+
+
+                <section
+                    id="zona-jugadores"
+                    class="zona-jugadores">
+
+                    <!-- Los jugadores aparecerán aquí -->
+
+                </section>
+
+
+                <section
+                    id="zona-cartas-jugadas"
+                    class="zona-cartas-jugadas">
+
+                    <h3>
+                        Cartas jugadas
+                    </h3>
+
+                    <div id="cartas-jugadas">
+
+                        <!-- Cartas jugadas -->
+
+                    </div>
+
+                </section>
+
+
+                <section
+                    id="zona-mi-mano"
+                    class="zona-mi-mano">
+
+                    <h3>
+                        Tu mano
+                    </h3>
+
+                    <div id="mi-mano">
+
+                        <!-- Carta privada del jugador -->
+
+                    </div>
+
+                </section>
+
+
+                <div
+                    id="mensaje-turno"
+                    class="mensaje-turno">
+                    Esperando...
+                </div>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+
+    <!-- ============================================= -->
+    <!-- JAVASCRIPT                                   -->
+    <!-- ============================================= -->
+
+    <script src="app.js"></script>
+
+</body>
+</html>
