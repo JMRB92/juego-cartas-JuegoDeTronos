@@ -1,4 +1,32 @@
 
+/* FIREBASE: conexión inicial */
+const firebaseConfig = {
+  apiKey: "AIzaSyBLQJx8_PG6GJt-qMJGGZVqI4f1fQpRZzY",
+  authDomain: "juego-cartas-jdt.firebaseapp.com",
+  databaseURL: "https://juego-cartas-jdt-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "juego-cartas-jdt",
+  storageBucket: "juego-cartas-jdt.firebasestorage.app",
+  messagingSenderId: "1017793643872",
+  appId: "1:1017793643872:web:a84810ffb3c13584510a05",
+  measurementId: "G-Y75B2LGBDT"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const firebaseAuth = firebase.auth();
+const firebaseDatabase = firebase.database();
+
+// Iniciar sesión sin pedir cuenta ni correo electrónico.
+firebaseAuth.signInAnonymously()
+  .then(() => {
+    console.log("Firebase conectado. Sesión anónima iniciada.");
+  })
+  .catch((error) => {
+    console.error("Error al iniciar sesión en Firebase:", error.code, error.message);
+  });
+
+/* FIN DE LA CONEXIÓN INICIAL */
+
 "use strict";
 
 // ======================================================
