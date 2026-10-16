@@ -1,40 +1,30 @@
 
-/* FIREBASE: conexión inicial */
-const firebaseConfig = {
-  apiKey: "AIzaSyBLQJx8_PG6GJt-qMJGGZVqI4f1fQpRZzY",
-  authDomain: "juego-cartas-jdt.firebaseapp.com",
-  databaseURL: "https://juego-cartas-jdt-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "juego-cartas-jdt",
-  storageBucket: "juego-cartas-jdt.firebasestorage.app",
-  messagingSenderId: "1017793643872",
-  appId: "1:1017793643872:web:a84810ffb3c13584510a05",
-  measurementId: "G-Y75B2LGBDT"
-};
-
-firebase.initializeApp(firebaseConfig);
-
-const firebaseAuth = firebase.auth();
-const firebaseDatabase = firebase.database();
-
-// Iniciar sesión sin pedir cuenta ni correo electrónico.
-firebaseAuth.signInAnonymously()
-  .then(() => {
-    console.log("Firebase conectado. Sesión anónima iniciada.");
-  })
-  .catch((error) => {
-    console.error("Error al iniciar sesión en Firebase:", error.code, error.message);
-  });
-
-/* FIN DE LA CONEXIÓN INICIAL */
-
 "use strict";
 
 // ======================================================
 // JUEGO DE CARTAS - JUEGO DE TRONOS
-// Primera versión: navegación y lobby local de prueba.
-// Todavía no es multijugador.
+// Fase 1: salas multijugador y lobby con Firebase.
+// El juego de cartas todavía no está implementado.
 // ======================================================
 
+// 1. CONFIGURACIÓN DE FIREBASE
+const firebaseConfig = {
+    apiKey: "AIzaSyBLQJx8_PG6GJt-qMJGGZVqI4f1fQpRZzY",
+    authDomain: "juego-cartas-jdt.firebaseapp.com",
+    databaseURL: "https://juego-cartas-jdt-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "juego-cartas-jdt",
+    storageBucket: "juego-cartas-jdt.firebasestorage.app",
+    messagingSenderId: "1017793643872",
+    appId: "1:1017793643872:web:a84810ffb3c13584510a05",
+    measurementId: "G-Y75B2LGBDT"
+};
+
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
+const auth = firebase.auth();
+const db = firebase.database();
 const $ = (id) => document.getElementById(id);
 
 const pantallas = [
@@ -45,15 +35,41 @@ const pantallas = [
     "pantalla-juego"
 ];
 
+let usuario = null;
 let partida = null;
-let soyCreador = false;
+let codigoActual = null;
+let referenciaSala = null;
+let referenciaJugadores = null;
+let escuchandoSala = false;
 
-function mostrarPantalla(id) {
-    pantallas.forEach((pantallaId) => {
-        $(pantallaId).classList.add("pantalla-oculta");
+// 2. INICIAR SESIÓN ANÓNIMA
+const sesionLista = auth.signInAnonymously()
+    .then((credencial) => {
+        usuario = credencial.user;
+        console.log("Firebase conectado. Sesión anónima iniciada.");
+        return usuario;
+    })
+    .catch((error) => {
+        console.error("Error de autenticación:", error.code, error.message);
+        alert("No se ha podido conectar con Firebase. Recarga la página e inténtalo de nuevo.");
+        throw error;
     });
 
-    $(id).classList.remove("pantalla-oculta");
+async function obtenerUsuario() {
+    if (usuario) return usuario;
+    return await sesionLista;
+}
+
+// 3. NAVEGACIÓN
+function mostrarPantalla(id) {
+    pantallas.forEach((pantallaId) => {
+        const elemento = $(pantallaId);
+        if (elemento) elemento.classList.add("pantalla-oculta");
+    });
+
+    const destino = $(id);
+    if (destino) destino.classList.remove("pantalla-oculta");
+
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -62,9 +78,7 @@ function crearCodigo() {
     let codigo = "";
 
     for (let i = 0; i < 6; i++) {
-        codigo += caracteres[
-            Math.floor(Math.random() * caracteres.length)
-        ];
+        codigo += caracteres[Math.floor(Math.random() * caracteres.length)];
     }
 
     return codigo;
@@ -86,22 +100,70 @@ function actualizarPuntosPorJugadores() {
     }
 }
 
+// 4. ESCUCHA Y REPRESENTACIÓN DE LA SALA
+function dejarDeEscucharSala() {
+    if (referenciaSala && escuchadoSala) {
+        referenciaSala.off("value");
+    }
+
+    if (referenciaJugadores) {
+        referenciaJugadores.off();
+    }
+
+    referenciaSala = null;
+    referenciaJugadores = null;
+    escuchandoSala = false;
+}
+
+// Variable auxiliar para evitar listeners duplicados.
+let escuchadoSala = false;
+
+function escucharSala(codigo) {
+    dejarDeEscucharSala();
+
+    codigoActual = codigo;
+    referenciaSala = db.ref("salas/" + codigo);
+    escuchandoSala = true;
+    escuchadoSala = true;
+
+    referenciaSala.on("value", (snapshot) => {
+        if (!snapshot.exists()) {
+            alert("La sala ya no existe.");
+            dejarDeEscucharSala();
+            partida = null;
+            mostrarPantalla("pantalla-inicio");
+            return;
+        }
+
+        partida = snapshot.val();
+        partida.codigo = codigo;
+        renderizarLobby();
+    }, (error) => {
+        console.error("Error al leer la sala:", error);
+        alert("No se ha podido leer la sala. Comprueba las reglas de Firebase.");
+    });
+}
+
 function renderizarLobby() {
+    if (!partida) return;
+
     $("codigo-sala").textContent = partida.codigo;
 
     const lista = $("lista-jugadores");
     lista.innerHTML = "";
 
-    partida.jugadores.forEach((jugador) => {
+    const jugadores = Object.values(partida.jugadores || {});
+
+    jugadores.forEach((jugador) => {
         const elemento = document.createElement("li");
 
         const nombre = document.createElement("span");
         nombre.className = "nombre";
-        nombre.textContent = jugador.nombre;
+        nombre.textContent = jugador.nombre || "Jugador";
 
         elemento.appendChild(nombre);
 
-        if (jugador.esCreador) {
+        if (jugador.uid === partida.creadorUid) {
             const etiqueta = document.createElement("span");
             etiqueta.className = "creador";
             etiqueta.textContent = "CREADOR";
@@ -112,46 +174,19 @@ function renderizarLobby() {
     });
 
     $("estado-lobby").textContent =
-        `Jugadores: ${partida.jugadores.length} de ${partida.maxJugadores}.`;
+        `Jugadores: ${jugadores.length} de ${partida.maxJugadores}.`;
 
-    // En esta versión local no se permite iniciar una partida
-    // hasta que esté conectado el multijugador real.
+    // El inicio de la partida se activará en una fase posterior.
     $("btn-iniciar-partida").disabled = true;
     $("btn-iniciar-partida").textContent =
-        "Pendiente de activar el juego";
-
-    $("btn-generar-partida").disabled = false;
+        "Pendiente de implementar el juego";
 
     mostrarPantalla("pantalla-lobby");
 }
 
-// Volver a la pantalla inicial.
-$("btn-volver-inicio-crear").addEventListener("click", () => {
-    mostrarPantalla("pantalla-inicio");
-});
-
-$("btn-volver-inicio-unirse").addEventListener("click", () => {
-    mostrarPantalla("pantalla-inicio");
-});
-
-// Abrir los formularios.
-$("btn-crear-partida").addEventListener("click", () => {
-    actualizarPuntosPorJugadores();
-    mostrarPantalla("pantalla-crear");
-});
-
-$("btn-unirse-partida").addEventListener("click", () => {
-    mostrarPantalla("pantalla-unirse");
-});
-
-// Actualizar automáticamente los puntos predeterminados.
-$("numero-jugadores").addEventListener(
-    "change",
-    actualizarPuntosPorJugadores
-);
-
-// Crear una sala de prueba local.
-$("btn-generar-partida").addEventListener("click", () => {
+// 5. CREAR UNA SALA REAL
+async function crearSala() {
+    const boton = $("btn-generar-partida");
     const nombre = $("nombre-creador").value.trim();
     const maxJugadores = Number($("numero-jugadores").value);
     const puntosObjetivo = Number($("puntos-objetivo").value);
@@ -162,48 +197,72 @@ $("btn-generar-partida").addEventListener("click", () => {
         return;
     }
 
-    if (
-        !Number.isInteger(puntosObjetivo) ||
-        puntosObjetivo < 1 ||
-        puntosObjetivo > 20
-    ) {
-        alert("El objetivo debe ser un número entre 1 y 20.");
-        $("puntos-objetivo").focus();
+    if (nombre.length > 20) {
+        alert("El nombre no puede superar los 20 caracteres.");
         return;
     }
 
-    soyCreador = true;
+    if (!Number.isInteger(maxJugadores) || maxJugadores < 2 || maxJugadores > 8) {
+        alert("Selecciona entre 2 y 8 jugadores.");
+        return;
+    }
 
-    partida = {
-        codigo: crearCodigo(),
-        maxJugadores,
-        puntosObjetivo,
-        jugadores: [
-            {
-                nombre,
-                esCreador: true
-            }
-        ]
-    };
+    if (!Number.isInteger(puntosObjetivo) || puntosObjetivo < 1 || puntosObjetivo > 20) {
+        alert("El objetivo debe ser un número entre 1 y 20.");
+        return;
+    }
 
-    renderizarLobby();
-});
-
-// Copiar el código de la sala.
-$("btn-copiar-codigo").addEventListener("click", async () => {
-    const codigo = $("codigo-sala").textContent;
+    boton.disabled = true;
 
     try {
-        await navigator.clipboard.writeText(codigo);
-        alert("Código copiado: " + codigo);
-    } catch (error) {
-        // Alternativa si el navegador no permite copiar.
-        prompt("Copia este código de partida:", codigo);
-    }
-});
+        const jugadorActual = await obtenerUsuario();
+        let creada = false;
+        let codigo = "";
+        let referencia = null;
 
-// Intentar unirse a una sala.
-$("btn-unirse").addEventListener("click", () => {
+        // Evitar sobrescribir una sala que ya exista.
+        for (let intento = 0; intento < 8 && !creada; intento++) {
+            codigo = crearCodigo();
+            referencia = db.ref("salas/" + codigo);
+
+            const resultado = await referencia.transaction((datos) => {
+                if (datos !== null) return;
+                return {
+                    codigo,
+                    creadorUid: jugadorActual.uid,
+                    maxJugadores,
+                    puntosObjetivo,
+                    estado: "esperando",
+                    creadaEn: firebase.database.ServerValue.TIMESTAMP,
+                    jugadores: {
+                        [jugadorActual.uid]: {
+                            uid: jugadorActual.uid,
+                            nombre,
+                            unidoEn: firebase.database.ServerValue.TIMESTAMP
+                        }
+                    }
+                };
+            }, undefined, false);
+
+            creada = resultado.committed;
+        }
+
+        if (!creada) {
+            throw new Error("No se ha podido generar un código libre. Inténtalo de nuevo.");
+        }
+
+        escucharSala(codigo);
+    } catch (error) {
+        console.error("Error al crear sala:", error);
+        alert("No se ha podido crear la partida: " + error.message);
+    } finally {
+        boton.disabled = false;
+    }
+}
+
+// 6. UNIRSE A UNA SALA REAL
+async function unirseSala() {
+    const boton = $("btn-unirse");
     const nombre = $("nombre-jugador").value.trim();
     const codigo = $("codigo-partida").value.trim().toUpperCase();
 
@@ -213,18 +272,100 @@ $("btn-unirse").addEventListener("click", () => {
         return;
     }
 
-    if (!/^[A-Z0-9]{6}$/.test(codigo)) {
-        alert("El código debe tener 6 letras o números.");
+    if (nombre.length > 20) {
+        alert("El nombre no puede superar los 20 caracteres.");
+        return;
+    }
+
+    if (!/^[A-HJ-NP-Z2-9]{6}$/.test(codigo)) {
+        alert("El código debe tener 6 caracteres válidos.");
         $("codigo-partida").focus();
         return;
     }
 
-    alert(
-        "La interfaz está preparada, pero el multijugador todavía " +
-        "no está conectado.\n\n" +
-        "En el siguiente paso añadiremos Firebase para que puedas " +
-        "crear y compartir partidas reales."
-    );
+    boton.disabled = true;
+
+    try {
+        const jugadorActual = await obtenerUsuario();
+        const referencia = db.ref("salas/" + codigo);
+
+        const resultado = await referencia.transaction((datos) => {
+            if (!datos || datos.estado !== "esperando") return;
+
+            if (!datos.jugadores) datos.jugadores = {};
+
+            // Si este usuario ya está en la sala, no lo añade otra vez.
+            if (datos.jugadores[jugadorActual.uid]) return datos;
+
+            if (Object.keys(datos.jugadores).length >= datos.maxJugadores) return;
+
+            datos.jugadores[jugadorActual.uid] = {
+                uid: jugadorActual.uid,
+                nombre,
+                unidoEn: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            return datos;
+        }, undefined, false);
+
+        if (!resultado.committed) {
+            const comprobacion = await referencia.once("value");
+            const datos = comprobacion.val();
+
+            if (!datos) {
+                alert("No existe ninguna partida con ese código.");
+            } else if (datos.estado !== "esperando") {
+                alert("Esta partida ya ha comenzado.");
+            } else if (Object.keys(datos.jugadores || {}).length >= datos.maxJugadores) {
+                alert("La partida está completa.");
+            } else {
+                alert("No se ha podido entrar en la sala. Inténtalo de nuevo.");
+            }
+            return;
+        }
+
+        escucharSala(codigo);
+    } catch (error) {
+        console.error("Error al unirse a la sala:", error);
+        alert("No se ha podido entrar en la partida: " + error.message);
+    } finally {
+        boton.disabled = false;
+    }
+}
+
+// 7. COPIAR CÓDIGO DE SALA
+$("btn-copiar-codigo").addEventListener("click", async () => {
+    const codigo = $("codigo-sala").textContent;
+
+    try {
+        await navigator.clipboard.writeText(codigo);
+        alert("Código copiado: " + codigo);
+    } catch (error) {
+        prompt("Copia este código de partida:", codigo);
+    }
 });
 
-console.log("Interfaz del juego cargada correctamente.");
+// 8. BOTONES Y FORMULARIOS
+$("btn-volver-inicio-crear").addEventListener("click", () => {
+    mostrarPantalla("pantalla-inicio");
+});
+
+$("btn-volver-inicio-unirse").addEventListener("click", () => {
+    mostrarPantalla("pantalla-inicio");
+});
+
+$("btn-crear-partida").addEventListener("click", () => {
+    actualizarPuntosPorJugadores();
+    mostrarPantalla("pantalla-crear");
+});
+
+$("btn-unirse-partida").addEventListener("click", () => {
+    mostrarPantalla("pantalla-unirse");
+});
+
+$("numero-jugadores").addEventListener("change", actualizarPuntosPorJugadores);
+
+$("btn-generar-partida").addEventListener("click", crearSala);
+$("btn-unirse").addEventListener("click", unirseSala);
+
+console.log("Interfaz del juego cargada.");
