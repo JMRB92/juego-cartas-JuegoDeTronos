@@ -4,7 +4,7 @@
 // ============================================================
 // JUEGO DE CARTAS - JUEGO DE TRONOS
 // Firebase Authentication + Realtime Database
-// Creación de salas, entrada y lobby multijugador.
+// Creación de salas, entrada y lobby.
 // ============================================================
 
 // 1. CONFIGURACIÓN DE FIREBASE
@@ -27,7 +27,7 @@ const auth = firebase.auth();
 const db = firebase.database();
 const $ = id => document.getElementById(id);
 
-// 2. ESTADO DE LA APLICACIÓN
+// 2. ESTADO
 let currentUser = null;
 let currentCode = null;
 let roomRef = null;
@@ -55,7 +55,7 @@ function showScreen(id) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// 4. MENSAJES Y ESTADO DE CONEXIÓN
+// 4. MENSAJES
 function status(text, kind = "") {
   const element = $("estado-conexion");
   if (!element) return;
@@ -72,10 +72,6 @@ function message(text = "") {
 function errorMessage(error, fallback) {
   if (error && error.code === "PERMISSION_DENIED") {
     return "Firebase ha denegado el acceso. Revisa las reglas de Realtime Database.";
-  }
-
-  if (error && error.code === "NETWORK_ERROR") {
-    return "Error de conexión. Comprueba tu conexión a Internet.";
   }
 
   return error && error.message ? error.message : fallback;
@@ -117,7 +113,7 @@ function validateName(name) {
   }
 }
 
-// 6. AUTENTICACIÓN ANÓNIMA
+// 6. AUTENTICACIÓN
 async function getUser() {
   if (auth.currentUser) {
     currentUser = auth.currentUser;
@@ -152,12 +148,10 @@ auth.signInAnonymously().catch(error => {
     error.message
   );
 
-  message(
-    "No se pudo iniciar sesión en Firebase: " + error.message
-  );
+  message("No se pudo iniciar sesión en Firebase: " + error.message);
 });
 
-// 7. GESTIÓN DE LA ESCUCHA DE UNA SALA
+// 7. ESCUCHAR UNA SALA
 function detachRoom() {
   if (roomRef && roomListener) {
     roomRef.off("value", roomListener);
@@ -202,7 +196,7 @@ function listenRoom(code) {
   );
 }
 
-// 8. DIBUJAR EL LOBBY
+// 8. MOSTRAR LOBBY
 function renderLobby() {
   if (!roomData) return;
 
@@ -244,7 +238,7 @@ function renderLobby() {
   message("");
 }
 
-// 9. CREAR UNA SALA
+// 9. CREAR SALA
 async function createRoom() {
   message("");
 
@@ -308,7 +302,7 @@ async function createRoom() {
 
     if (!createdCode) {
       throw new Error(
-        "No se pudo reservar un código. Revisa las reglas de Firebase."
+        "No se pudo reservar un código de sala. Revisa las reglas de Firebase."
       );
     }
 
@@ -340,112 +334,61 @@ async function joinRoom() {
     }
 
     const user = await getUser();
-    const ref = db.ref("salas/" + code);
+    const room = db.ref("salas/" + code);
 
-    // Comprobar que la sala existe y está esperando jugadores.
-    const firstRead = await ref.once("value");
-    const initial = firstRead.val();
+    // Leer los datos de la sala.
+    const snapshot = await room.once("value");
+    const data = snapshot.val();
 
-    if (!initial) {
+    if (!data) {
       throw new Error("No existe ninguna partida con ese código.");
     }
 
-    if (initial.estado !== "esperando") {
+    if (data.estado !== "esperando") {
       throw new Error("Esta partida ya ha comenzado.");
     }
 
-    const initialPlayers = initial.jugadores || {};
+    const players = data.jugadores || {};
+    const alreadyJoined = Boolean(players[user.uid]);
 
     if (
-      Object.keys(initialPlayers).length >= Number(initial.maxJugadores) &&
-      !initialPlayers[user.uid]
+      !alreadyJoined &&
+      Object.keys(players).length >= Number(data.maxJugadores)
     ) {
       throw new Error("La partida está completa.");
     }
 
-    // Añadir al jugador de forma atómica.
-    const result = await ref.transaction(
-      data => {
-        if (data === null) return;
+    // Diagnóstico: escritura directa en la ruta del jugador.
+    // Esta operación necesita permiso de escritura en Firebase.
+    if (!alreadyJoined) {
+      const playerRef = room.child("jugadores/" + user.uid);
 
-        if (data.estado !== "esperando") return;
-
-        if (!data.jugadores) data.jugadores = {};
-
-        // No duplicar al usuario si ya está en la sala.
-        if (data.jugadores[user.uid]) return data;
-
-        const count = Object.keys(data.jugadores).length;
-
-        if (count >= Number(data.maxJugadores)) return;
-
-        data.jugadores[user.uid] = {
-          uid: user.uid,
-          nombre: name,
-          unidoEn: firebase.database.ServerValue.TIMESTAMP
-        };
-
-        return data;
-      },
-      (error, committed, snapshot) => {
-        if (error) {
-          console.error(
-            "ERROR REAL DE LA TRANSACCIÓN:",
-            error.code,
-            error.message
-          );
-        } else {
-          console.log("Resultado de transacción:", {
-            committed,
-            sala: snapshot ? snapshot.val() : null
-          });
-        }
-      },
-      false
-    );
-
-    if (!result.committed) {
-      const checkSnapshot = await ref.once("value");
-      const check = checkSnapshot.val();
-
-      if (!check) {
-        throw new Error("La sala ya no existe.");
-      }
-
-      if (check.estado !== "esperando") {
-        throw new Error("La partida ya ha comenzado.");
-      }
-
-      const players = check.jugadores || {};
-
-      if (
-        Object.keys(players).length >= Number(check.maxJugadores) &&
-        !players[user.uid]
-      ) {
-        throw new Error("La partida está completa.");
-      }
-
-      throw new Error(
-        "La transacción no se confirmó. Consulta la consola del navegador: " +
-        "busca 'ERROR REAL DE LA TRANSACCIÓN'."
-      );
+      await playerRef.set({
+        uid: user.uid,
+        nombre: name,
+        unidoEn: firebase.database.ServerValue.TIMESTAMP
+      });
     }
+
+    console.log("Jugador incorporado correctamente a la sala:", code);
 
     listenRoom(code);
 
   } catch (error) {
-    console.error("Error al unirse a la sala:", error);
+    console.error(
+      "Error real al unirse:",
+      error.code,
+      error.message,
+      error
+    );
 
-    message(errorMessage(
-      error,
-      "No se ha podido entrar en la sala."
-    ));
+    message(errorMessage(error, "No se ha podido entrar en la sala."));
   } finally {
     button.disabled = false;
   }
 }
 
-// 11. SALIR DE UNA SALA
+// 11. SALIR DE LA SALA
 function leaveRoom() {
   detachRoom();
 
@@ -456,7 +399,7 @@ function leaveRoom() {
   message("");
 }
 
-// 12. BOTONES Y EVENTOS
+// 12. EVENTOS DE LA INTERFAZ
 $("btn-crear-partida").addEventListener("click", () => {
   updateDefaultPoints();
   showScreen("pantalla-crear");
