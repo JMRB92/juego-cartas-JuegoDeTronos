@@ -1,0 +1,29 @@
+# Juego de cartas JDT — paquete para GitHub Pages
+
+## Contenido
+- `index.html`: interfaz web responsive.
+- `style.css`: estilos.
+- `app.js`: Firebase, autenticación anónima, creación de salas y lobby sincronizado.
+- `assets/cartas/`: imágenes de cartas aportadas por el usuario.
+- `firebase-rules-PRUEBA.json`: reglas TEMPORALES para probar solo el lobby.
+
+## Subir a GitHub
+1. Abre el repositorio `juego-cartas-JuegoDeTronos`.
+2. Sustituye `index.html`, `style.css` y `app.js` por los de este paquete.
+3. Sube `assets/cartas/` manteniendo los nombres de archivo.
+4. Guarda/Commit los cambios.
+5. Mantén GitHub Pages en la rama `main`, carpeta `/ (root)`.
+
+## Firebase requerido
+1. Authentication → Sign-in method → Anonymous: habilitado.
+2. Authentication → Settings → Authorized domains: añade `jmrb92.github.io` (o el dominio real que muestre tu GitHub Pages).
+3. Realtime Database debe estar en la región indicada por la URL del `app.js`.
+
+## Reglas de Firebase
+`firebase-rules-PRUEBA.json` permite a cualquier usuario autenticado anónimamente leer y escribir todas las salas. Es solo para comprobar la creación/entrada al lobby. No uses estas reglas para jugar partidas reales, porque no protegen datos ni impiden manipular una partida. Antes de guardar manos secretas, hace falta diseñar reglas más estrictas y validar las acciones de juego en servidor.
+
+## Estado funcional
+Este paquete implementa la conexión, autenticación anónima, creación de salas, entrada mediante código y sincronización del lobby. **No implementa todavía el juego completo**: reparto secreto de cartas, efectos, turnos, eliminaciones, puntuación y fin de ronda siguen pendientes. El botón de iniciar partida queda desactivado intencionadamente.
+
+## Si no funciona
+Abre la web, pulsa F12 → Console, intenta crear/entrar y copia el error. Comprueba también Realtime Database → Rules y que hayas pulsado Publish.
