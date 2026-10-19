@@ -286,10 +286,52 @@ async function unirseSala() {
     boton.disabled = true;
 
     try {
-        const jugadorActual = await obtenerUsuario();
-        const referencia = db.ref("salas/" + codigo);
+const jugadorActual = await obtenerUsuario();
+const referencia = db.ref("salas/" + codigo);
 
-        const resultado = await referencia.transaction((datos) => {
+// Leer primero la sala desde Firebase.
+const lectura = await referencia.once("value");
+const salaInicial = lectura.val();
+
+if (!salaInicial) {
+    alert("No existe ninguna partida con ese código.");
+    return;
+}
+
+if (salaInicial.estado !== "esperando") {
+    alert("Esta partida ya ha comenzado.");
+    return;
+}
+
+if (
+    Object.keys(salaInicial.jugadores || {}).length >=
+    salaInicial.maxJugadores &&
+    !(salaInicial.jugadores || {})[jugadorActual.uid]
+) {
+    alert("La partida está completa.");
+    return;
+}
+
+// Intentar añadir al jugador.
+const resultado = await referencia.transaction((datos) => {
+    if (!datos || datos.estado !== "esperando") return;
+
+    if (!datos.jugadores) datos.jugadores = {};
+
+    if (datos.jugadores[jugadorActual.uid]) return datos;
+
+    if (
+        Object.keys(datos.jugadores).length >= datos.maxJugadores
+    ) return;
+
+    datos.jugadores[jugadorActual.uid] = {
+        uid: jugadorActual.uid,
+        nombre,
+        unidoEn: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    return datos;
+}, undefined, false);
             if (!datos || datos.estado !== "esperando") return;
 
             if (!datos.jugadores) datos.jugadores = {};
