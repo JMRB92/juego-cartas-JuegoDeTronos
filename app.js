@@ -1,449 +1,253 @@
+/* Juego de Cartas JDT — versión consolidada
+   Firebase compat. La entrada a sala NO usa transacciones en el nodo completo.
+   Los errores se muestran con operación, código y mensaje reales. */
+(() => {
+  "use strict";
 
-"use strict";
+  const $ = id => document.getElementById(id);
+  const config = window.FIREBASE_CONFIG;
+  const screens = ["pantalla-inicio","pantalla-crear","pantalla-unirse","pantalla-lobby","pantalla-juego"];
+  let auth, db, user = null, currentCode = null, roomRef = null, roomCallback = null;
+  let room = null, selectedCard = null, busy = false;
 
-// ============================================================
-// JUEGO DE CARTAS - JUEGO DE TRONOS
-// Firebase Authentication + Realtime Database
-// Creación de salas, entrada y lobby.
-// ============================================================
-
-// 1. CONFIGURACIÓN DE FIREBASE
-const firebaseConfig = {
-  apiKey: "AIzaSyBLQJx8_PG6GJt-qMJGGZVqI4f1fQpRZzY",
-  authDomain: "juego-cartas-jdt.firebaseapp.com",
-  databaseURL: "https://juego-cartas-jdt-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "juego-cartas-jdt",
-  storageBucket: "juego-cartas-jdt.firebasestorage.app",
-  messagingSenderId: "1017793643872",
-  appId: "1:1017793643872:web:a84810ffb3c13584510a05",
-  measurementId: "G-Y75B2LGBDT"
-};
-
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
-
-const auth = firebase.auth();
-const db = firebase.database();
-const $ = id => document.getElementById(id);
-
-// 2. ESTADO
-let currentUser = null;
-let currentCode = null;
-let roomRef = null;
-let roomListener = null;
-let roomData = null;
-
-// 3. PANTALLAS
-const screens = [
-  "pantalla-inicio",
-  "pantalla-crear",
-  "pantalla-unirse",
-  "pantalla-lobby",
-  "pantalla-juego"
-];
-
-function showScreen(id) {
-  screens.forEach(screenId => {
-    const element = $(screenId);
-    if (element) {
-      element.classList.toggle("hidden", screenId !== id);
-      element.classList.toggle("pantalla-oculta", screenId !== id);
-    }
-  });
-
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-// 4. MENSAJES
-function status(text, kind = "") {
-  const element = $("estado-conexion");
-  if (!element) return;
-
-  element.textContent = text;
-  element.className = "status " + kind;
-}
-
-function message(text = "") {
-  const element = $("mensaje-global");
-  if (element) element.textContent = text;
-}
-
-function errorMessage(error, fallback) {
-  if (error && error.code === "PERMISSION_DENIED") {
-    return "Firebase ha denegado el acceso. Revisa las reglas de Realtime Database.";
+  function showScreen(id) {
+    screens.forEach(s => { const el=$(s); if(el) el.classList.toggle("hidden",s!==id); });
+    window.scrollTo({top:0,behavior:"smooth"});
   }
-
-  return error && error.message ? error.message : fallback;
-}
-
-// 5. UTILIDADES
-function randomCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-  return Array.from(
-    { length: 6 },
-    () => chars[Math.floor(Math.random() * chars.length)]
-  ).join("");
-}
-
-function updateDefaultPoints() {
-  const playersInput = $("numero-jugadores");
-  const pointsInput = $("puntos-objetivo");
-  const explanation = $("explicacion-puntos");
-
-  if (!playersInput || !pointsInput || !explanation) return;
-
-  const numberOfPlayers = Number(playersInput.value);
-
-  pointsInput.value = numberOfPlayers <= 4 ? 5 : 3;
-
-  explanation.textContent = numberOfPlayers <= 4
-    ? "Objetivo predeterminado: 5 puntos para 2–4 jugadores."
-    : "Objetivo predeterminado: 3 puntos para 5–8 jugadores.";
-}
-
-function validateName(name) {
-  if (!name) {
-    throw new Error("Escribe tu nombre.");
+  function say(text="") { const el=$("mensaje-global"); if(el) el.textContent=text; }
+  function setStatus(text, cls="") { const el=$("estado-conexion"); if(el){el.textContent=text;el.className="connection "+cls;} }
+  function fail(op, err) {
+    console.error(`[${op}]`, err?.code || "", err?.message || err, err);
+    say(`${op}: ${err?.code ? err.code+" — " : ""}${err?.message || String(err)}`);
   }
-
-  if (name.length > 20) {
-    throw new Error("El nombre no puede superar los 20 caracteres.");
+  function randomCode() {
+    const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join("");
   }
-}
-
-// 6. AUTENTICACIÓN
-async function getUser() {
-  if (auth.currentUser) {
-    currentUser = auth.currentUser;
-    return currentUser;
+  function validateName(name) {
+    if(!name) throw new Error("Escribe tu nombre.");
+    if(name.length>20) throw new Error("El nombre no puede superar los 20 caracteres.");
   }
-
-  if (currentUser) return currentUser;
-
-  const result = await auth.signInAnonymously();
-  currentUser = result.user;
-
-  return currentUser;
-}
-
-auth.onAuthStateChanged(user => {
-  if (user) {
-    currentUser = user;
-    status("Firebase conectado", "ok");
-    console.log("Firebase conectado. UID:", user.uid);
-  } else {
-    currentUser = null;
-    status("Conectando con Firebase…");
+  async function ensureUser() {
+    if(auth.currentUser) { user=auth.currentUser; return user; }
+    const cred=await auth.signInAnonymously();
+    user=cred.user; return user;
   }
-});
-
-auth.signInAnonymously().catch(error => {
-  status("Error de conexión", "bad");
-
-  console.error(
-    "Error de autenticación Firebase:",
-    error.code,
-    error.message
-  );
-
-  message("No se pudo iniciar sesión en Firebase: " + error.message);
-});
-
-// 7. ESCUCHAR UNA SALA
-function detachRoom() {
-  if (roomRef && roomListener) {
-    roomRef.off("value", roomListener);
+  function detach() {
+    if(roomRef && roomCallback) roomRef.off("value",roomCallback);
+    roomRef=null; roomCallback=null;
   }
-
-  roomRef = null;
-  roomListener = null;
-}
-
-function listenRoom(code) {
-  detachRoom();
-
-  currentCode = code;
-  roomRef = db.ref("salas/" + code);
-
-  roomListener = snapshot => {
-    if (!snapshot.exists()) {
-      message("La sala ya no existe o ha sido eliminada.");
-      detachRoom();
-      showScreen("pantalla-inicio");
-      return;
-    }
-
-    roomData = snapshot.val();
-    roomData.codigo = code;
-
-    renderLobby();
-  };
-
-  roomRef.on(
-    "value",
-    roomListener,
-    error => {
-      console.error(
-        "Error al leer la sala:",
-        error.code,
-        error.message
-      );
-
-      message("Error al leer la sala: " + error.message);
-    }
-  );
-}
-
-// 8. MOSTRAR LOBBY
-function renderLobby() {
-  if (!roomData) return;
-
-  $("codigo-sala").textContent = roomData.codigo;
-
-  const players = Object.values(roomData.jugadores || {});
-  const list = $("lista-jugadores");
-
-  list.replaceChildren();
-
-  players.forEach(player => {
-    const item = document.createElement("li");
-
-    const name = document.createElement("span");
-    name.textContent = player.nombre || "Jugador";
-    item.appendChild(name);
-
-    if (player.uid === roomData.creadorUid) {
-      const tag = document.createElement("span");
-      tag.className = "creador";
-      tag.textContent = "CREADOR";
-      item.appendChild(tag);
-    }
-
-    list.appendChild(item);
-  });
-
-  $("estado-lobby").textContent =
-    `Jugadores: ${players.length} de ${roomData.maxJugadores}`;
-
-  const startButton = $("btn-iniciar-partida");
-
-  if (startButton) {
-    startButton.disabled = true;
-    startButton.textContent = "Juego todavía no activado";
+  function listen(code) {
+    detach(); currentCode=code; roomRef=db.ref(`salas/${code}`);
+    roomCallback=snap=>{
+      if(!snap.exists()){say("La sala ya no existe.");detach();showScreen("pantalla-inicio");return;}
+      room=snap.val(); room.codigo=code;
+      if(room.estado==="jugando") renderGame(); else renderLobby();
+    };
+    roomRef.on("value",roomCallback,err=>fail("No se pudo leer la sala",err));
   }
-
-  showScreen("pantalla-lobby");
-  message("");
-}
-
-// 9. CREAR SALA
-async function createRoom() {
-  message("");
-
-  const button = $("btn-generar-partida");
-  button.disabled = true;
-
-  try {
-    const name = $("nombre-creador").value.trim();
-    validateName(name);
-
-    const maxPlayers = Number($("numero-jugadores").value);
-    const target = Number($("puntos-objetivo").value);
-
-    if (
-      !Number.isInteger(maxPlayers) ||
-      maxPlayers < 2 ||
-      maxPlayers > 8
-    ) {
-      throw new Error("Elige entre 2 y 8 jugadores.");
-    }
-
-    if (
-      !Number.isInteger(target) ||
-      target < 1 ||
-      target > 20
-    ) {
-      throw new Error("El objetivo debe estar entre 1 y 20 puntos.");
-    }
-
-    const user = await getUser();
-    let createdCode = null;
-
-    for (let attempt = 0; attempt < 10 && !createdCode; attempt++) {
-      const code = randomCode();
-      const ref = db.ref("salas/" + code);
-
-      const result = await ref.transaction(existing => {
-        if (existing !== null) return;
-
-        return {
-          codigo: code,
-          creadorUid: user.uid,
-          maxJugadores: maxPlayers,
-          puntosObjetivo: target,
-          estado: "esperando",
-          creadaEn: firebase.database.ServerValue.TIMESTAMP,
-          jugadores: {
-            [user.uid]: {
-              uid: user.uid,
-              nombre: name,
-              unidoEn: firebase.database.ServerValue.TIMESTAMP
-            }
-          }
-        };
-      });
-
-      if (result.committed) {
-        createdCode = code;
+  function playersOf(data=room) { return Object.values(data?.jugadores || {}); }
+  function renderLobby() {
+    if(!room) return;
+    $("codigo-sala").textContent=room.codigo;
+    const players=playersOf();
+    $("estado-lobby").textContent=`${players.length} de ${room.maxJugadores} jugadores`;
+    const list=$("lista-jugadores"); list.replaceChildren();
+    players.forEach(p=>{
+      const li=document.createElement("li"), name=document.createElement("span");
+      name.textContent=p.nombre || "Jugador"; li.appendChild(name);
+      if(p.uid===room.creadorUid){const tag=document.createElement("span");tag.className="creador";tag.textContent="ANFITRIÓN";li.appendChild(tag);}
+      list.appendChild(li);
+    });
+    const host=room.creadorUid===user?.uid, canStart=players.length>=2;
+    $("btn-iniciar-partida").disabled=!(host && canStart && room.estado==="esperando");
+    $("btn-iniciar-partida").textContent=host?"Iniciar partida":"Esperando al anfitrión";
+    $("estado-partida").textContent=host?"Puedes iniciar cuando haya al menos 2 jugadores.":"El anfitrión iniciará la partida cuando todos estén listos.";
+    showScreen("pantalla-lobby");
+  }
+  function makeDeck() {
+    // 27 cartas del mazo conocido. Las imágenes originales se cargan desde assets/cartas.
+    const ids=["01","02","11","12","13","14","15","16","17","18","21","22","23","31","32","33","41","42","43","51","52","61","62","71","72","81","91"];
+    return ids.map((id,i)=>({id,value:Number(id[0]),name:cardName(id),image:`assets/cartas/${id}.png`,uid:`${id}-${i}`}));
+  }
+  function cardName(id) {
+    const names={"01":"El Bufón","02":"El Asesino","11":"Carta de valor 1","12":"Carta de valor 1","13":"Carta de valor 1","14":"Carta de valor 1","15":"Carta de valor 1","16":"Carta de valor 1","17":"Carta de valor 1","18":"Carta de valor 1","21":"Carta de valor 2","22":"Carta de valor 2","23":"Carta de valor 2","31":"Carta de valor 3","32":"Carta de valor 3","33":"Carta de valor 3","41":"Carta de valor 4","42":"Carta de valor 4","43":"Carta de valor 4","51":"Carta de valor 5","52":"Carta de valor 5","61":"Carta de valor 6","62":"Carta de valor 6","71":"Carta de valor 7","72":"Carta de valor 7","81":"Carta de valor 8","91":"Carta de valor 9"};
+    return names[id] || `Carta ${id}`;
+  }
+  function renderGame() {
+    if(!room) return;
+    showScreen("pantalla-juego");
+    const game=room.juego || {};
+    $("numero-ronda").textContent=game.ronda || 1;
+    $("cartas-restantes").textContent=(game.mazo || []).length;
+    $("objetivo-puntos").textContent=room.puntosObjetivo || 5;
+    const zone=$("zona-jugadores"); zone.replaceChildren();
+    playersOf().forEach(p=>{
+      const tile=document.createElement("div"); tile.className="player-tile"+(p.uid===game.turnoUid?" active":"");
+      const n=document.createElement("strong"); n.textContent=p.nombre; tile.appendChild(n);
+      const s=document.createElement("small"); s.textContent=`Puntos: ${(game.puntos||{})[p.uid]||0}`; tile.appendChild(s);
+      zone.appendChild(tile);
+    });
+    const hand=$("mi-mano"); hand.replaceChildren();
+    const mine=(game.manos||{})[user?.uid]||[];
+    mine.forEach((card,index)=>{
+      const b=document.createElement("button"); b.className="playing-card"+(selectedCard===index?" selected":"");
+      b.disabled=game.turnoUid!==user?.uid || !!game.cartaJugada;
+      const val=document.createElement("span"); val.className="value"; val.textContent=card.value; b.appendChild(val);
+      const nm=document.createElement("span"); nm.className="card-name"; nm.textContent=card.name; b.appendChild(nm);
+      b.title="Selecciona la carta para jugarla";
+      b.addEventListener("click",()=>playCard(index)); hand.appendChild(b);
+    });
+    const played=$("cartas-jugadas"); played.replaceChildren();
+    (game.jugadas||[]).slice().reverse().forEach(x=>{
+      const span=document.createElement("span"); span.className="pill";
+      span.textContent=`${x.nombre}: ${x.carta.name} (${x.carta.value})`; played.appendChild(span);
+    });
+    const myTurn=game.turnoUid===user?.uid;
+    $("btn-robar").disabled=!myTurn || !!game.cartaRobada || !!game.cartaJugada;
+    $("btn-pasar").disabled=!myTurn || !game.cartaJugada;
+    $("mensaje-turno").textContent=myTurn?"Es tu turno. Roba una carta y juega una.":"Esperando el turno de otro jugador.";
+  }
+  async function createRoom() {
+    if(busy)return; busy=true; say(""); $("btn-generar-partida").disabled=true;
+    try {
+      const name=$("nombre-creador").value.trim(); validateName(name);
+      const max=Number($("numero-jugadores").value), target=Number($("puntos-objetivo").value);
+      if(!Number.isInteger(max)||max<2||max>8) throw new Error("Elige entre 2 y 8 jugadores.");
+      if(!Number.isInteger(target)||target<1||target>20) throw new Error("El objetivo debe estar entre 1 y 20 puntos.");
+      await ensureUser();
+      let code=null;
+      for(let i=0;i<10&&!code;i++){
+        const candidate=randomCode(), ref=db.ref(`salas/${candidate}`);
+        const snap=await ref.once("value");
+        if(snap.exists()) continue;
+        const data={codigo:candidate,creadorUid:user.uid,maxJugadores:max,puntosObjetivo:target,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
+        // El código es aleatorio; set crea el nodo. En colisión extremadamente improbable se comprueba antes.
+        await ref.set(data); code=candidate;
       }
-    }
-
-    if (!createdCode) {
-      throw new Error(
-        "No se pudo reservar un código de sala. Revisa las reglas de Firebase."
-      );
-    }
-
-    listenRoom(createdCode);
-
-  } catch (error) {
-    console.error("Error al crear sala:", error);
-    message(errorMessage(error, "No se ha podido crear la sala."));
-  } finally {
-    button.disabled = false;
+      if(!code) throw new Error("No se pudo generar un código único. Vuelve a intentarlo.");
+      listen(code); say("");
+    } catch(e){fail("Error al crear la sala",e);}
+    finally{busy=false;$("btn-generar-partida").disabled=false;}
   }
-}
-
-// 10. UNIRSE A UNA SALA
-async function joinRoom() {
-  message("");
-
-  const button = $("btn-unirse");
-  button.disabled = true;
-
-  try {
-    const name = $("nombre-jugador").value.trim();
-    validateName(name);
-
-    const code = $("codigo-partida").value.trim().toUpperCase();
-
-    if (!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) {
-      throw new Error("El código debe tener 6 caracteres válidos.");
-    }
-
-    const user = await getUser();
-    const room = db.ref("salas/" + code);
-
-    // Leer los datos de la sala.
-    const snapshot = await room.once("value");
-    const data = snapshot.val();
-
-    if (!data) {
-      throw new Error("No existe ninguna partida con ese código.");
-    }
-
-    if (data.estado !== "esperando") {
-      throw new Error("Esta partida ya ha comenzado.");
-    }
-
-    const players = data.jugadores || {};
-    const alreadyJoined = Boolean(players[user.uid]);
-
-    if (
-      !alreadyJoined &&
-      Object.keys(players).length >= Number(data.maxJugadores)
-    ) {
-      throw new Error("La partida está completa.");
-    }
-
-    // Diagnóstico: escritura directa en la ruta del jugador.
-    // Esta operación necesita permiso de escritura en Firebase.
-    if (!alreadyJoined) {
-      const playerRef = room.child("jugadores/" + user.uid);
-
-      await playerRef.set({
-        uid: user.uid,
-        nombre: name,
-        unidoEn: firebase.database.ServerValue.TIMESTAMP
-      });
-    }
-
-    console.log("Jugador incorporado correctamente a la sala:", code);
-
-    listenRoom(code);
-
-  } catch (error) {
-    console.error(
-      "Error real al unirse:",
-      error.code,
-      error.message,
-      error
-    );
-
-    message(errorMessage(error, "No se ha podido entrar en la sala."));
-  } finally {
-    button.disabled = false;
+  async function joinRoom() {
+    if(busy)return; busy=true; say(""); $("btn-unirse").disabled=true;
+    const name=$("nombre-jugador").value.trim(), code=$("codigo-partida").value.trim().toUpperCase();
+    try {
+      validateName(name);
+      if(!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) throw new Error("El código debe tener 6 caracteres válidos.");
+      await ensureUser();
+      const ref=db.ref(`salas/${code}`);
+      console.info("[UNIRSE] Leyendo sala:",ref.toString());
+      const snap=await ref.once("value");
+      const data=snap.val();
+      console.info("[UNIRSE] Resultado de lectura:",{exists:snap.exists(),estado:data?.estado,jugadores:Object.keys(data?.jugadores||{}).length});
+      if(!data) throw new Error("No existe una sala con ese código. Comprueba que el código es correcto.");
+      if(data.estado!=="esperando") throw new Error("La partida ya ha comenzado.");
+      const existing=data.jugadores||{};
+      if(!existing[user.uid] && Object.keys(existing).length>=Number(data.maxJugadores)) throw new Error("La sala está completa.");
+      if(!existing[user.uid]) {
+        const playerRef=ref.child(`jugadores/${user.uid}`);
+        console.info("[UNIRSE] Escribiendo jugador en:",playerRef.toString());
+        await playerRef.set({uid:user.uid,nombre,unidoEn:firebase.database.ServerValue.TIMESTAMP});
+        console.info("[UNIRSE] Escritura completada.");
+      }
+      listen(code);
+    } catch(e){fail("Error al unirse a la sala",e);}
+    finally{busy=false;$("btn-unirse").disabled=false;}
   }
-}
-
-// 11. SALIR DE LA SALA
-function leaveRoom() {
-  detachRoom();
-
-  currentCode = null;
-  roomData = null;
-
-  showScreen("pantalla-inicio");
-  message("");
-}
-
-// 12. EVENTOS DE LA INTERFAZ
-$("btn-crear-partida").addEventListener("click", () => {
-  updateDefaultPoints();
-  showScreen("pantalla-crear");
-});
-
-$("btn-unirse-partida").addEventListener("click", () => {
-  showScreen("pantalla-unirse");
-});
-
-$("btn-volver-inicio-crear").addEventListener("click", () => {
-  showScreen("pantalla-inicio");
-});
-
-$("btn-volver-inicio-unirse").addEventListener("click", () => {
-  showScreen("pantalla-inicio");
-});
-
-$("numero-jugadores").addEventListener("change", updateDefaultPoints);
-
-$("btn-generar-partida").addEventListener("click", createRoom);
-$("btn-unirse").addEventListener("click", joinRoom);
-
-$("btn-copiar-codigo").addEventListener("click", async () => {
-  const code = $("codigo-sala").textContent;
-
-  try {
-    await navigator.clipboard.writeText(code);
-    message("Código copiado: " + code);
-  } catch (_) {
-    window.prompt("Copia este código:", code);
+  async function startGame() {
+    say("");
+    try {
+      await ensureUser();
+      if(!room || room.creadorUid!==user.uid) throw new Error("Solo el anfitrión puede iniciar la partida.");
+      const current=await db.ref(`salas/${currentCode}`).once("value");
+      const data=current.val();
+      if(!data || data.estado!=="esperando") throw new Error("La sala ya no está esperando jugadores.");
+      const players=Object.values(data.jugadores||{});
+      if(players.length<2) throw new Error("Se necesitan al menos 2 jugadores.");
+      const deck=makeDeck().sort(()=>Math.random()-.5);
+      const hands={}; const scores={};
+      players.forEach(p=>{hands[p.uid]=[deck.pop()];scores[p.uid]=0;});
+      const first=players[Math.floor(Math.random()*players.length)];
+      const game={ronda:1,mazo:deck,manos:hands,puntos:scores,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],estado:"jugando"};
+      await db.ref(`salas/${currentCode}`).update({estado:"jugando",juego:game});
+    } catch(e){fail("No se pudo iniciar la partida",e);}
   }
-});
-
-$("btn-salir-sala").addEventListener("click", leaveRoom);
-
-$("btn-volver-lobby").addEventListener("click", () => {
-  showScreen("pantalla-lobby");
-});
-
-$("codigo-partida").addEventListener("input", event => {
-  event.target.value = event.target.value
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 6);
-});
-
-console.log("Interfaz del juego cargada correctamente.");
+  async function drawCard() {
+    try {
+      const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
+      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      if(g.cartaRobada||g.cartaJugada) throw new Error("Ya has robado una carta en este turno.");
+      if(!g.mazo?.length) throw new Error("No quedan cartas en el mazo.");
+      const card=g.mazo.pop(); g.manos[user.uid].push(card); g.cartaRobada=true;
+      await db.ref(`salas/${currentCode}/juego`).set(g);
+    } catch(e){fail("No se pudo robar carta",e);}
+  }
+  async function playCard(index) {
+    try {
+      const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
+      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      if(!g.cartaRobada) throw new Error("Primero debes robar una carta.");
+      if(g.cartaJugada) throw new Error("Ya has jugado una carta en este turno.");
+      const hand=g.manos[user.uid]||[];
+      if(index<0||index>=hand.length) throw new Error("La carta seleccionada ya no está en tu mano.");
+      const card=hand.splice(index,1)[0];
+      g.jugadas=g.jugadas||[]; g.jugadas.push({uid:user.uid,nombre:(data.jugadores[user.uid]||{}).nombre||"Jugador",carta:card});
+      g.cartaJugada=true; g.manos[user.uid]=hand; g.ultimaCartaJugada=card;
+      await db.ref(`salas/${currentCode}/juego`).set(g); selectedCard=null;
+    } catch(e){fail("No se pudo jugar la carta",e);}
+  }
+  async function endTurn() {
+    try {
+      const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
+      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      if(!g.cartaJugada) throw new Error("Debes robar y jugar una carta antes de terminar el turno.");
+      const players=Object.values(data.jugadores||{}), index=players.findIndex(p=>p.uid===user.uid);
+      const next=players[(index+1)%players.length];
+      g.turnoUid=next.uid; g.cartaRobada=false; g.cartaJugada=false;
+      // Cada jugador mantiene una carta en la mano. Las cartas jugadas quedan visibles en la mesa.
+      if(g.manos[user.uid].length>1) g.manos[user.uid]=[g.manos[user.uid][g.manos[user.uid].length-1]];
+      await db.ref(`salas/${currentCode}/juego`).set(g);
+    } catch(e){fail("No se pudo terminar el turno",e);}
+  }
+  async function leaveRoom() {
+    try {
+      if(currentCode && user) {
+        const ref=db.ref(`salas/${currentCode}`);
+        const snap=await ref.once("value"), data=snap.val();
+        if(data?.jugadores?.[user.uid]) await ref.child(`jugadores/${user.uid}`).remove();
+        if(data?.creadorUid===user.uid) await ref.update({estado:"cerrada"});
+      }
+    } catch(e){console.warn("No se pudo limpiar la salida:",e);}
+    detach(); currentCode=null; room=null; selectedCard=null; say(""); showScreen("pantalla-inicio");
+  }
+  function wire() {
+    $("btn-crear-partida").addEventListener("click",()=>{say("");showScreen("pantalla-crear");});
+    $("btn-unirse-partida").addEventListener("click",()=>{say("");showScreen("pantalla-unirse");});
+    $("btn-volver-inicio-crear").addEventListener("click",()=>showScreen("pantalla-inicio"));
+    $("btn-volver-inicio-unirse").addEventListener("click",()=>showScreen("pantalla-inicio"));
+    $("numero-jugadores").addEventListener("change",()=>{$("puntos-objetivo").value=Number($("numero-jugadores").value)<=4?5:3;});
+    $("btn-generar-partida").addEventListener("click",createRoom);
+    $("btn-unirse").addEventListener("click",joinRoom);
+    $("codigo-partida").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);});
+    $("btn-copiar-codigo").addEventListener("click",async()=>{const code=$("codigo-sala").textContent;try{await navigator.clipboard.writeText(code);say("Código copiado: "+code);}catch(_){window.prompt("Copia el código:",code);}});
+    $("btn-salir-sala").addEventListener("click",leaveRoom);
+    $("btn-salir-juego").addEventListener("click",leaveRoom);
+    $("btn-iniciar-partida").addEventListener("click",startGame);
+    $("btn-robar").addEventListener("click",drawCard);
+    $("btn-pasar").addEventListener("click",endTurn);
+  }
+  function boot() {
+    try {
+      if(!window.firebase || !config) throw new Error("No se han cargado los scripts o la configuración de Firebase.");
+      if(!firebase.apps.length) firebase.initializeApp(config);
+      auth=firebase.auth(); db=firebase.database();
+      auth.onAuthStateChanged(u=>{user=u||null;if(u)setStatus("Firebase conectado","ok");else setStatus("Iniciando sesión…");});
+      auth.signInAnonymously().catch(e=>{setStatus("Error de autenticación","bad");fail("No se pudo iniciar sesión anónima",e);});
+      wire();
+      console.log("Aplicación cargada. Versión consolidada JDT.");
+    } catch(e) {setStatus("Error de configuración","bad");fail("No se pudo iniciar la aplicación",e);}
+  }
+  document.addEventListener("DOMContentLoaded",boot);
+})();
