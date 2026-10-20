@@ -1,8 +1,0 @@
-{
-  "rules": {
-    "salas": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    }
-  }
-}
