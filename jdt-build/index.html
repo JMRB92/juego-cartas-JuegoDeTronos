@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#171717">
+  <title>Juego de Cartas · Juego de Tronos</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script defer src="firebase-config.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">♜</span><div><strong>JUEGO DE TRONOS</strong><small>Juego de cartas multijugador</small></div></div>
+    <div id="estado-conexion" class="connection">Conectando…</div>
+  </header>
+
+  <main class="container">
+    <section id="pantalla-inicio" class="screen">
+      <div class="hero">
+        <p class="eyebrow">LA BATALLA POR EL TRONO</p>
+        <h1>Tu estrategia.<br><span>Tu casa. Tu victoria.</span></h1>
+        <p class="muted">Crea una sala privada o únete a tus amigos con un código.</p>
+        <div class="button-row">
+          <button id="btn-crear-partida" class="primary">Crear partida</button>
+          <button id="btn-unirse-partida" class="secondary">Unirse a partida</button>
+        </div>
+      </div>
+      <div class="notice"><strong>Partidas privadas</strong><p>Comparte el código de seis caracteres para invitar a otros jugadores. No necesitas crear una cuenta.</p></div>
+    </section>
+
+    <section id="pantalla-crear" class="screen hidden">
+      <button id="btn-volver-inicio-crear" class="back">← Volver</button>
+      <div class="panel">
+        <p class="eyebrow">NUEVA PARTIDA</p><h2>Preparar la sala</h2>
+        <label for="nombre-creador">Tu nombre</label>
+        <input id="nombre-creador" maxlength="20" autocomplete="nickname" placeholder="Escribe tu nombre">
+        <label for="numero-jugadores">Número máximo de jugadores</label>
+        <select id="numero-jugadores"><option value="2">2 jugadores</option><option value="3">3 jugadores</option><option value="4" selected>4 jugadores</option><option value="5">5 jugadores</option><option value="6">6 jugadores</option><option value="7">7 jugadores</option><option value="8">8 jugadores</option></select>
+        <label for="puntos-objetivo">Puntos para ganar</label>
+        <input id="puntos-objetivo" type="number" min="1" max="20" value="5">
+        <p id="explicacion-puntos" class="help">Objetivo predeterminado: 5 puntos para 2–4 jugadores.</p>
+        <button id="btn-generar-partida" class="primary full">Crear sala</button>
+      </div>
+    </section>
+
+    <section id="pantalla-unirse" class="screen hidden">
+      <button id="btn-volver-inicio-unirse" class="back">← Volver</button>
+      <div class="panel">
+        <p class="eyebrow">ENTRAR EN UNA PARTIDA</p><h2>¿Te han invitado?</h2>
+        <label for="nombre-jugador">Tu nombre</label>
+        <input id="nombre-jugador" maxlength="20" autocomplete="nickname" placeholder="Escribe tu nombre">
+        <label for="codigo-partida">Código de la sala</label>
+        <input id="codigo-partida" maxlength="6" autocapitalize="characters" placeholder="ABC123" class="code-input">
+        <button id="btn-unirse" class="primary full">Unirse a la sala</button>
+      </div>
+    </section>
+
+    <section id="pantalla-lobby" class="screen hidden">
+      <div class="lobby-head"><div><p class="eyebrow">SALA DE ESPERA</p><h2>La mesa está preparada</h2></div><button id="btn-salir-sala" class="secondary">Salir</button></div>
+      <div class="code-card"><div><small>CÓDIGO DE INVITACIÓN</small><strong id="codigo-sala">------</strong></div><button id="btn-copiar-codigo" class="secondary">Copiar código</button></div>
+      <div class="panel"><div class="section-heading"><h3>Jugadores</h3><span id="estado-lobby" class="pill">0 jugadores</span></div><ul id="lista-jugadores" class="player-list"></ul>
+        <p id="estado-partida" class="help">Comparte el código con los demás jugadores. El anfitrión podrá iniciar cuando estén todos listos.</p>
+        <button id="btn-iniciar-partida" class="primary full">Iniciar partida</button>
+      </div>
+    </section>
+
+    <section id="pantalla-juego" class="screen hidden">
+      <div class="game-head"><div><p class="eyebrow">PARTIDA EN CURSO</p><h2>La corte</h2></div><button id="btn-salir-juego" class="secondary">Salir</button></div>
+      <div class="game-stats"><div><small>RONDA</small><strong id="numero-ronda">1</strong></div><div><small>MAZO</small><strong id="cartas-restantes">0</strong></div><div><small>OBJETIVO</small><strong id="objetivo-puntos">5</strong></div></div>
+      <div class="panel"><h3>Jugadores</h3><div id="zona-jugadores" class="players-grid"></div></div>
+      <div class="panel"><h3>Tu mano</h3><p class="help">Roba una carta y juega una carta por turno. Las cartas se muestran por su valor.</p><div id="mi-mano" class="hand"></div><div class="button-row"><button id="btn-robar" class="secondary">Robar carta</button><button id="btn-pasar" class="primary">Terminar turno</button></div><p id="mensaje-turno" class="help"></p></div>
+      <div class="panel"><div class="section-heading"><h3>Historial de la partida</h3><button id="btn-historial" class="secondary small-button" type="button">Ver historial completo</button></div><div id="cartas-jugadas" class="played-list"></div><ol id="historial-partida" class="event-log"></ol></div>
+      <div id="modal-carta" class="card-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle de carta"><button id="cerrar-modal-carta" class="modal-close" type="button" aria-label="Cerrar">×</button><div id="contenido-modal-carta"></div></div>
+      <div id="modal-historial" class="history-modal hidden" role="dialog" aria-modal="true" aria-label="Historial completo"><div class="history-modal-head"><h3>Historial de la partida</h3><button id="cerrar-modal-historial" class="secondary" type="button">Cerrar</button></div><ol id="historial-completo" class="event-log"></ol></div>
+    </section>
+
+    <div id="mensaje-global" class="global-message" role="status" aria-live="polite"></div>
+  </main>
+  <footer>Prototipo privado · No introduzcas datos personales sensibles.</footer>
+</body>
+</html>
