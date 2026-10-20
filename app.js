@@ -1,293 +1,86 @@
-/* Juego de Cartas JDT — versión consolidada
-   Firebase compat. La entrada a sala NO usa transacciones en el nodo completo.
-   Los errores se muestran con operación, código y mensaje reales. */
+/* Juego de Cartas JDT — motor integrado. Firebase compat. */
 (() => {
-  "use strict";
-
-  const $ = id => document.getElementById(id);
-  const config = window.FIREBASE_CONFIG;
-  const screens = ["pantalla-inicio","pantalla-crear","pantalla-unirse","pantalla-lobby","pantalla-juego"];
-  let auth, db, user = null, currentCode = null, roomRef = null, roomCallback = null;
-  let room = null, selectedCard = null, busy = false;
-
-  function showScreen(id) {
-    screens.forEach(s => { const el=$(s); if(el) el.classList.toggle("hidden",s!==id); });
-    window.scrollTo({top:0,behavior:"smooth"});
-  }
-  function say(text="") { const el=$("mensaje-global"); if(el) el.textContent=text; }
-  function setStatus(text, cls="") { const el=$("estado-conexion"); if(el){el.textContent=text;el.className="connection "+cls;} }
-  function fail(op, err) {
-    console.error(`[${op}]`, err?.code || "", err?.message || err, err);
-    say(`${op}: ${err?.code ? err.code+" — " : ""}${err?.message || String(err)}`);
-  }
-  function randomCode() {
-    const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join("");
-  }
-  function validateName(name) {
-    if(!name) throw new Error("Escribe tu nombre.");
-    if(name.length>20) throw new Error("El nombre no puede superar los 20 caracteres.");
-  }
-  async function ensureUser() {
-    if(auth.currentUser) { user=auth.currentUser; return user; }
-    const cred=await auth.signInAnonymously();
-    user=cred.user; return user;
-  }
-  function detach() {
-    if(roomRef && roomCallback) roomRef.off("value",roomCallback);
-    roomRef=null; roomCallback=null;
-  }
-  function listen(code) {
-    detach(); currentCode=code; roomRef=db.ref(`salas/${code}`);
-    roomCallback=snap=>{
-      if(!snap.exists()){say("La sala ya no existe.");detach();showScreen("pantalla-inicio");return;}
-      room=snap.val(); room.codigo=code;
-      if(room.estado==="jugando") renderGame(); else renderLobby();
-    };
-    roomRef.on("value",roomCallback,err=>fail("No se pudo leer la sala",err));
-  }
-  function playersOf(data=room) { return Object.values(data?.jugadores || {}); }
-  function renderLobby() {
-    if(!room) return;
-    $("codigo-sala").textContent=room.codigo;
-    const players=playersOf();
-    $("estado-lobby").textContent=`${players.length} de ${room.maxJugadores} jugadores`;
-    const list=$("lista-jugadores"); list.replaceChildren();
-    players.forEach(p=>{
-      const li=document.createElement("li"), name=document.createElement("span");
-      name.textContent=p.nombre || "Jugador"; li.appendChild(name);
-      if(p.uid===room.creadorUid){const tag=document.createElement("span");tag.className="creador";tag.textContent="ANFITRIÓN";li.appendChild(tag);}
-      list.appendChild(li);
-    });
-    const host=room.creadorUid===user?.uid, canStart=players.length>=2;
-    $("btn-iniciar-partida").disabled=!(host && canStart && room.estado==="esperando");
-    $("btn-iniciar-partida").textContent=host?"Iniciar partida":"Esperando al anfitrión";
-    $("estado-partida").textContent=host?"Puedes iniciar cuando haya al menos 2 jugadores.":"El anfitrión iniciará la partida cuando todos estén listos.";
-    showScreen("pantalla-lobby");
-  }
-  function makeDeck() {
-    // 27 cartas del mazo conocido. Las imágenes originales se cargan desde assets/cartas.
-    const ids=["01","02","11","12","13","14","15","16","17","18","21","22","23","31","32","33","41","42","43","51","52","61","62","71","72","81","91"];
-    return ids.map((id,i)=>({id,value:Number(id[0]),name:cardName(id),image:`assets/cartas/${id}.png`,uid:`${id}-${i}`}));
-  }
-  function cardName(id) {
-    const names={"01":"El Bufón","02":"El Asesino","11":"Carta de valor 1","12":"Carta de valor 1","13":"Carta de valor 1","14":"Carta de valor 1","15":"Carta de valor 1","16":"Carta de valor 1","17":"Carta de valor 1","18":"Carta de valor 1","21":"Carta de valor 2","22":"Carta de valor 2","23":"Carta de valor 2","31":"Carta de valor 3","32":"Carta de valor 3","33":"Carta de valor 3","41":"Carta de valor 4","42":"Carta de valor 4","43":"Carta de valor 4","51":"Carta de valor 5","52":"Carta de valor 5","61":"Carta de valor 6","62":"Carta de valor 6","71":"Carta de valor 7","72":"Carta de valor 7","81":"Carta de valor 8","91":"Carta de valor 9"};
-    return names[id] || `Carta ${id}`;
-  }
-  function cardImagePath(card) {
-    const id=String(card?.id || '').trim();
-    return card?.image || (id ? `assets/cartas/${id}.png` : '');
-  }
-  function makeFallbackCard(card, compact=false) {
-    const fallback=document.createElement('div'); fallback.className=compact?'fallback-mini':'fallback-card';
-    const value=document.createElement('strong'); value.className='value'; value.textContent=card?.value ?? '?'; fallback.appendChild(value);
-    const name=document.createElement(compact?'span':'h3'); name.textContent=card?.name || `Carta ${card?.id || ''}`; fallback.appendChild(name);
-    if(!compact){const effect=document.createElement('p');effect.textContent=card?.effect || 'Efecto no definido en los datos de esta carta.';fallback.appendChild(effect);}
-    return fallback;
-  }
-  function makeCardVisual(card, compact=false) {
-    const wrap=document.createElement(compact?'div':'button');
-    if(!compact){wrap.type='button';wrap.className='playing-card';wrap.addEventListener('dblclick',()=>showCardDetails(card));wrap.title='Pulsa para jugar; doble clic para ampliar la carta';}
-    else wrap.className='played-card';
-    const path=cardImagePath(card);
-    if(path){const img=document.createElement('img');img.src=path;img.alt=card?.name||`Carta ${card?.id||''}`;img.loading='lazy';img.onerror=()=>{img.remove();wrap.insertBefore(makeFallbackCard(card,compact),wrap.firstChild);};wrap.appendChild(img);}
-    else wrap.appendChild(makeFallbackCard(card,compact));
-    if(compact){const copy=document.createElement('div');copy.className='played-card-copy';const name=document.createElement('strong');name.textContent=card?.name||`Carta ${card?.id||''}`;copy.appendChild(name);const number=document.createElement('small');number.textContent=`Número/valor: ${card?.value ?? '—'}`;copy.appendChild(number);const effect=document.createElement('span');effect.textContent=card?.effect||'Efecto: consulta la carta ilustrada.';copy.appendChild(effect);wrap.appendChild(copy);}
-    else {const info=document.createElement('div');info.className='card-info';const value=document.createElement('span');value.className='value';value.textContent=card?.value ?? '?';info.appendChild(value);const name=document.createElement('span');name.className='card-name';name.textContent=card?.name||`Carta ${card?.id||''}`;info.appendChild(name);wrap.appendChild(info);}
-    return wrap;
-  }
-  function showCardDetails(card) {
-    const modal=$('modal-carta'),content=$('contenido-modal-carta');if(!modal||!content)return;
-    content.replaceChildren();const path=cardImagePath(card);
-    if(path){const img=document.createElement('img');img.className='modal-card-image';img.src=path;img.alt=card?.name||'Carta';img.onerror=()=>{img.remove();content.insertBefore(makeFallbackCard(card,false),content.firstChild);};content.appendChild(img);}
-    else content.appendChild(makeFallbackCard(card,false));
-    const title=document.createElement('h3');title.textContent=card?.name||`Carta ${card?.id||''}`;content.appendChild(title);
-    const number=document.createElement('p');number.textContent=`Número/valor: ${card?.value ?? '—'}`;content.appendChild(number);
-    const effect=document.createElement('p');effect.textContent=card?.effect||'El efecto detallado no está disponible en los datos actuales. Consulta la ilustración original de la carta.';content.appendChild(effect);
-    modal.classList.remove('hidden');
-  }
-  function addHistoryEntry(game, text, kind='') {
-    game.historial=game.historial||[];game.historial.push({texto:text,timestamp:Date.now(),tipo:kind});
-    if(game.historial.length>300)game.historial=game.historial.slice(-300);
-  }
-  function renderHistory(game) {
-    const targets=[$('historial-partida'),$('historial-completo')].filter(Boolean);
-    targets.forEach(list=>{list.replaceChildren();(game.historial||[]).slice().reverse().forEach(entry=>{const li=document.createElement('li');if(entry.tipo)li.classList.add('event-'+entry.tipo);const time=document.createElement('time');time.textContent=new Date(entry.timestamp||Date.now()).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'});li.appendChild(time);li.appendChild(document.createTextNode(entry.texto||'Acción de la partida'));list.appendChild(li);});});
-  }
-  function renderGame() {
-    if(!room) return;
-    showScreen('pantalla-juego');
-    const game=room.juego||{};
-    $('numero-ronda').textContent=game.ronda||1;
-    $('cartas-restantes').textContent=(game.mazo||[]).length;
-    $('objetivo-puntos').textContent=room.puntosObjetivo||5;
-    const zone=$('zona-jugadores');zone.replaceChildren();
-    playersOf().forEach(p=>{
-      const tile=document.createElement('div');tile.className='player-tile'+(p.uid===game.turnoUid?' active':'');
-      const head=document.createElement('div');head.className='player-head';const n=document.createElement('strong');n.textContent=p.nombre||'Jugador';head.appendChild(n);const badge=document.createElement('span');badge.className='pill';badge.textContent=p.uid===game.turnoUid?'EN TURNO':'EN MESA';head.appendChild(badge);tile.appendChild(head);
-      const score=document.createElement('span');score.className='player-score';score.textContent=`Puntuación: ${(game.puntos||{})[p.uid]||0} / ${room.puntosObjetivo||5}`;tile.appendChild(score);
-      const stack=document.createElement('div');stack.className='player-played';const title=document.createElement('span');title.className='played-title';title.textContent='Cartas jugadas';stack.appendChild(title);
-      const cards=(game.jugadas||[]).filter(x=>x.uid===p.uid);
-      if(!cards.length){const empty=document.createElement('small');empty.className='muted';empty.textContent='Todavía no ha jugado cartas.';stack.appendChild(empty);}
-      cards.forEach(x=>stack.appendChild(makeCardVisual(x.carta||{},true)));tile.appendChild(stack);zone.appendChild(tile);
-    });
-    const hand=$('mi-mano');hand.replaceChildren();const mine=(game.manos||{})[user?.uid]||[];
-    mine.forEach((card,index)=>{const b=makeCardVisual(card,false);b.disabled=game.turnoUid!==user?.uid||!!game.cartaJugada;b.classList.toggle('selected',selectedCard===index);b.addEventListener('click',()=>{if(game.turnoUid===user?.uid&&!game.cartaJugada){playCard(index);}else showCardDetails(card);});hand.appendChild(b);});
-    const played=$('cartas-jugadas');played.replaceChildren();(game.jugadas||[]).slice().reverse().slice(0,8).forEach(x=>{const item=document.createElement('span');item.className='pill';item.textContent=`${x.nombre}: ${(x.carta||{}).name||'Carta'} (${(x.carta||{}).value??'—'})`;played.appendChild(item);});
-    renderHistory(game);
-    const myTurn=game.turnoUid===user?.uid;
-    $('btn-robar').disabled=!myTurn||!!game.cartaRobada||!!game.cartaJugada;
-    $('btn-pasar').disabled=!myTurn||!game.cartaJugada;
-    $('mensaje-turno').textContent=myTurn?'Es tu turno. Roba una carta y juega una.':'Esperando el turno de otro jugador.';
-  }
-  async function createRoom() {
-    if(busy)return; busy=true; say(""); $("btn-generar-partida").disabled=true;
-    try {
-      const name=$("nombre-creador").value.trim(); validateName(name);
-      const max=Number($("numero-jugadores").value), target=Number($("puntos-objetivo").value);
-      if(!Number.isInteger(max)||max<2||max>8) throw new Error("Elige entre 2 y 8 jugadores.");
-      if(!Number.isInteger(target)||target<1||target>20) throw new Error("El objetivo debe estar entre 1 y 20 puntos.");
-      await ensureUser();
-      let code=null;
-      for(let i=0;i<10&&!code;i++){
-        const candidate=randomCode(), ref=db.ref(`salas/${candidate}`);
-        const snap=await ref.once("value");
-        if(snap.exists()) continue;
-        const data={codigo:candidate,creadorUid:user.uid,maxJugadores:max,puntosObjetivo:target,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
-        // El código es aleatorio; set crea el nodo. En colisión extremadamente improbable se comprueba antes.
-        await ref.set(data); code=candidate;
-      }
-      if(!code) throw new Error("No se pudo generar un código único. Vuelve a intentarlo.");
-      listen(code); say("");
-    } catch(e){fail("Error al crear la sala",e);}
-    finally{busy=false;$("btn-generar-partida").disabled=false;}
-  }
-  async function joinRoom() {
-    if(busy)return; busy=true; say(""); $("btn-unirse").disabled=true;
-    const name=$("nombre-jugador").value.trim(), code=$("codigo-partida").value.trim().toUpperCase();
-    try {
-      validateName(name);
-      if(!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) throw new Error("El código debe tener 6 caracteres válidos.");
-      await ensureUser();
-      const ref=db.ref(`salas/${code}`);
-      console.info("[UNIRSE] Leyendo sala:",ref.toString());
-      const snap=await ref.once("value");
-      const data=snap.val();
-      console.info("[UNIRSE] Resultado de lectura:",{exists:snap.exists(),estado:data?.estado,jugadores:Object.keys(data?.jugadores||{}).length});
-      if(!data) throw new Error("No existe una sala con ese código. Comprueba que el código es correcto.");
-      if(data.estado!=="esperando") throw new Error("La partida ya ha comenzado.");
-      const existing=data.jugadores||{};
-      if(!existing[user.uid] && Object.keys(existing).length>=Number(data.maxJugadores)) throw new Error("La sala está completa.");
-      if(!existing[user.uid]) {
-        const playerRef=ref.child(`jugadores/${user.uid}`);
-        console.info("[UNIRSE] Escribiendo jugador en:",playerRef.toString());
-        await playerRef.set({uid:user.uid,nombre,unidoEn:firebase.database.ServerValue.TIMESTAMP});
-        console.info("[UNIRSE] Escritura completada.");
-      }
-      listen(code);
-    } catch(e){fail("Error al unirse a la sala",e);}
-    finally{busy=false;$("btn-unirse").disabled=false;}
-  }
-  async function startGame() {
-    say("");
-    try {
-      await ensureUser();
-      if(!room || room.creadorUid!==user.uid) throw new Error("Solo el anfitrión puede iniciar la partida.");
-      const current=await db.ref(`salas/${currentCode}`).once("value");
-      const data=current.val();
-      if(!data || data.estado!=="esperando") throw new Error("La sala ya no está esperando jugadores.");
-      const players=Object.values(data.jugadores||{});
-      if(players.length<2) throw new Error("Se necesitan al menos 2 jugadores.");
-      const deck=makeDeck().sort(()=>Math.random()-.5);
-      const hands={}; const scores={};
-      players.forEach(p=>{hands[p.uid]=[deck.pop()];scores[p.uid]=0;});
-      const first=players[Math.floor(Math.random()*players.length)];
-      const game={ronda:1,mazo:deck,manos:hands,puntos:scores,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],historial:[],estado:"jugando"};
-      addHistoryEntry(game,`La partida ha comenzado. Empieza ${(data.jugadores[first.uid]||{}).nombre||"el primer jugador"}.`);
-      await db.ref(`salas/${currentCode}`).update({estado:"jugando",juego:game});
-    } catch(e){fail("No se pudo iniciar la partida",e);}
-  }
-  async function drawCard() {
-    try {
-      const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
-      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
-      if(g.cartaRobada||g.cartaJugada) throw new Error("Ya has robado una carta en este turno.");
-      if(!g.mazo?.length) throw new Error("No quedan cartas en el mazo.");
-      const card=g.mazo.pop(); g.manos[user.uid].push(card); g.cartaRobada=true;
-      addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"Un jugador"} roba una carta.`);
-      await db.ref(`salas/${currentCode}/juego`).set(g);
-    } catch(e){fail("No se pudo robar carta",e);}
-  }
-  async function playCard(index) {
-    try {
-      const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
-      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
-      if(!g.cartaRobada) throw new Error("Primero debes robar una carta.");
-      if(g.cartaJugada) throw new Error("Ya has jugado una carta en este turno.");
-      const hand=g.manos[user.uid]||[];
-      if(index<0||index>=hand.length) throw new Error("La carta seleccionada ya no está en tu mano.");
-      const card=hand.splice(index,1)[0];
-      g.jugadas=g.jugadas||[]; g.jugadas.push({uid:user.uid,nombre:(data.jugadores[user.uid]||{}).nombre||"Jugador",carta:card});
-      g.cartaJugada=true; g.manos[user.uid]=hand; g.ultimaCartaJugada=card;
-      addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"Un jugador"} juega ${card.name||`la carta ${card.id||""}`} (valor ${card.value??"—"}). El efecto específico no se resuelve automáticamente en esta versión.`,"effect");
-      await db.ref(`salas/${currentCode}/juego`).set(g); selectedCard=null;
-    } catch(e){fail("No se pudo jugar la carta",e);}
-  }
-  async function endTurn() {
-    try {
-      const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
-      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
-      if(!g.cartaJugada) throw new Error("Debes robar y jugar una carta antes de terminar el turno.");
-      const players=Object.values(data.jugadores||{}), index=players.findIndex(p=>p.uid===user.uid);
-      const next=players[(index+1)%players.length];
-      addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"El jugador"} termina su turno. Ahora juega ${(next||{}).nombre||"el siguiente jugador"}.`);
-      g.turnoUid=next.uid; g.cartaRobada=false; g.cartaJugada=false;
-      // Cada jugador mantiene una carta en la mano. Las cartas jugadas quedan visibles en la mesa.
-      if(g.manos[user.uid].length>1) g.manos[user.uid]=[g.manos[user.uid][g.manos[user.uid].length-1]];
-      await db.ref(`salas/${currentCode}/juego`).set(g);
-    } catch(e){fail("No se pudo terminar el turno",e);}
-  }
-  async function leaveRoom() {
-    try {
-      if(currentCode && user) {
-        const ref=db.ref(`salas/${currentCode}`);
-        const snap=await ref.once("value"), data=snap.val();
-        if(data?.jugadores?.[user.uid]) await ref.child(`jugadores/${user.uid}`).remove();
-        if(data?.creadorUid===user.uid) await ref.update({estado:"cerrada"});
-      }
-    } catch(e){console.warn("No se pudo limpiar la salida:",e);}
-    detach(); currentCode=null; room=null; selectedCard=null; say(""); showScreen("pantalla-inicio");
-  }
-  function wire() {
-    $("cerrar-modal-carta")?.addEventListener("click",()=>$("modal-carta")?.classList.add("hidden"));
-    $("modal-carta")?.addEventListener("click",e=>{if(e.target.id==="modal-carta")e.currentTarget.classList.add("hidden");});
-    $("btn-historial")?.addEventListener("click",()=>$("modal-historial")?.classList.remove("hidden"));
-    $("cerrar-modal-historial")?.addEventListener("click",()=>$("modal-historial")?.classList.add("hidden"));
-    $("btn-crear-partida").addEventListener("click",()=>{say("");showScreen("pantalla-crear");});
-    $("btn-unirse-partida").addEventListener("click",()=>{say("");showScreen("pantalla-unirse");});
-    $("btn-volver-inicio-crear").addEventListener("click",()=>showScreen("pantalla-inicio"));
-    $("btn-volver-inicio-unirse").addEventListener("click",()=>showScreen("pantalla-inicio"));
-    $("numero-jugadores").addEventListener("change",()=>{$("puntos-objetivo").value=Number($("numero-jugadores").value)<=4?5:3;});
-    $("btn-generar-partida").addEventListener("click",createRoom);
-    $("btn-unirse").addEventListener("click",joinRoom);
-    $("codigo-partida").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);});
-    $("btn-copiar-codigo").addEventListener("click",async()=>{const code=$("codigo-sala").textContent;try{await navigator.clipboard.writeText(code);say("Código copiado: "+code);}catch(_){window.prompt("Copia el código:",code);}});
-    $("btn-salir-sala").addEventListener("click",leaveRoom);
-    $("btn-salir-juego").addEventListener("click",leaveRoom);
-    $("btn-iniciar-partida").addEventListener("click",startGame);
-    $("btn-robar").addEventListener("click",drawCard);
-    $("btn-pasar").addEventListener("click",endTurn);
-  }
-  function boot() {
-    try {
-      if(!window.firebase || !config) throw new Error("No se han cargado los scripts o la configuración de Firebase.");
-      if(!firebase.apps.length) firebase.initializeApp(config);
-      auth=firebase.auth(); db=firebase.database();
-      auth.onAuthStateChanged(u=>{user=u||null;if(u)setStatus("Firebase conectado","ok");else setStatus("Iniciando sesión…");});
-      auth.signInAnonymously().catch(e=>{setStatus("Error de autenticación","bad");fail("No se pudo iniciar sesión anónima",e);});
-      wire();
-      console.log("Aplicación cargada. Versión consolidada JDT.");
-    } catch(e) {setStatus("Error de configuración","bad");fail("No se pudo iniciar la aplicación",e);}
-  }
-  document.addEventListener("DOMContentLoaded",boot);
+'use strict';
+const $=id=>document.getElementById(id);
+const cfg=window.FIREBASE_CONFIG; const ids=['01','02','11','12','13','14','15','16','17','18','21','22','23','31','32','33','41','42','43','51','52','61','62','71','72','81','91'];
+const META={
+'01':['Theon Greyjoy',0,'Elige un jugador y mira su carta. Si ganas la ronda, consigues un punto adicional.'],
+'02':['Arya Stark',0,'Cuando un guerrero te ataca, te descartas y el atacante descarta su otra carta.'],
+'11':['Euron Greyjoy',1,'Elige un jugador y adivina un número distinto de 1. Si aciertas, queda eliminado de la ronda.'],
+'12':['Ramsay Bolton',1,'Elige un jugador y adivina un número distinto de 1. Si aciertas, queda eliminado de la ronda.'],
+'13':['Khal Drogo',1,'Elige un jugador y adivina un número distinto de 1. Si aciertas, queda eliminado de la ronda.'],
+'14':['Guerrero Lannister',1,'Elige un jugador y adivina un número distinto de 1. Si aciertas, queda eliminado de la ronda.'],
+'15':['El Perro',1,'Elige un jugador y adivina un número distinto de 1. Si aciertas, queda eliminado de la ronda.'],
+'16':['Bronn',1,'Elige un jugador y adivina un número distinto de 1. Si aciertas, queda eliminado de la ronda.'],
+'17':['Brienne de Tarth',1,'Elige un jugador y adivina un número distinto de 1. Si aciertas, queda eliminado de la ronda.'],
+'18':['Jon Snow',1,'Si mueres, robas otra carta. Regla especial interpretada desde la ilustración.'],
+'21':['Missandei',2,'Elige un jugador y mira su carta en secreto.'],
+'22':['Brandon Stark',2,'Elige un jugador y mira su carta en secreto; la ilustración indica que puedes mirar una carta adicional.'],
+'23':['Samwell Tarly',2,'Elige un jugador y mira su carta en secreto.'],
+'31':['Darys',3,'Elige un jugador y comparad cartas en secreto. Muere la carta de menor valor.'],
+'32':['Consejero de la corte',3,'Elige un jugador y comparad cartas en secreto. Muere la carta de menor valor.'],
+'33':['Tyrion Lannister',3,'Elige un jugador, comparad cartas y decide si muere la de mayor o la de menor valor.'],
+'41':['Jorah Mormont',4,'Quedas protegido hasta tu siguiente turno.'],
+'42':['Defensor del Norte',4,'Quedas protegido hasta tu siguiente turno.'],
+'43':['Gusano Gris',4,'Quedas protegido hasta tu siguiente turno y sumas uno a la comparación final.'],
+'51':['Cersei Lannister',5,'Elige a un jugador para que descarte su carta y robe otra. Si aparece su gemela entre los descartes o en tu mano, ganas la ronda.'],
+'52':['Jaime Lannister',5,'Elige a un jugador para que descarte su carta y robe otra. Si aparece su gemela entre los descartes o en tu mano, ganas la ronda.'],
+'61':['Rey de la Noche',6,'Todos los jugadores intercambian sus manos aleatoriamente.'],
+'62':['Joffrey Baratheon',6,'Elige un jugador con quien intercambiar tu mano.'],
+'71':['Olenna Tyrell',7,'Elige un jugador y comparad cartas en secreto. Muere la carta de mayor valor.'],
+'72':['Sansa Stark',7,'Puedes descartar esta carta si tienes también un 5 o un 6; también puedes descartarla voluntariamente.'],
+'81':['Daenerys Targaryen',8,'Si descartas esta carta por efecto de otro jugador, quedas eliminado.'],
+'91':['Drogon',9,'Elige un jugador y elimínalo inmediatamente, salvo que tenga a Daenerys. La regla de final de ronda asociada a Daenerys se aplica al resolver la ronda.']};
+let auth,db,user=null,code=null,ref=null,cb=null,room=null,busy=false;
+const esc=s=>String(s??'');
+function msg(t=''){if($('mensaje-global'))$('mensaje-global').textContent=t;}
+function status(t,c=''){if($('estado-conexion')){$('estado-conexion').textContent=t;$('estado-conexion').className='connection '+c;}}
+function error(op,e){console.error(op,e);msg(`${op}: ${e?.message||e}`);}
+function screen(id){['pantalla-inicio','pantalla-crear','pantalla-unirse','pantalla-lobby','pantalla-juego'].forEach(x=>$(x)?.classList.toggle('hidden',x!==id));}
+function makeDeck(){return ids.map(id=>({id,value:Number(id[0]),name:META[id][0],effect:META[id][2],image:`assets/cartas/${id}.png`,uid:id+'-'+Math.random().toString(36).slice(2,8)}));}
+function nameOf(uid){return room?.jugadores?.[uid]?.nombre||'Jugador';}
+function players(g=room?.juego){return Object.values(room?.jugadores||{}).filter(p=>!g?.eliminados?.[p.uid]);}
+function log(g,text,type=''){g.historial=g.historial||[];g.historial.push({texto:text,timestamp:Date.now(),tipo:type});g.historial=g.historial.slice(-400);}
+function showFallback(card,compact=false){const d=document.createElement('div');d.className=compact?'fallback-mini':'fallback-card';const v=document.createElement('strong');v.className='value';v.textContent=card.value;d.append(v);const n=document.createElement(compact?'span':'h3');n.textContent=card.name;d.append(n);if(!compact){const p=document.createElement('p');p.textContent=card.effect;d.append(p);}return d;}
+function visual(card,compact=false,click){const w=document.createElement(compact?'div':'button');w.className=compact?'played-card':'playing-card';if(!compact){w.type='button';w.addEventListener('click',()=>click?.());w.addEventListener('contextmenu',e=>{e.preventDefault();details(card);});w.addEventListener('dblclick',e=>{e.preventDefault();details(card);});w.title='Pulsa para jugar. Clic derecho para ampliar.';}const img=document.createElement('img');img.src=card.image||`assets/cartas/${card.id}.png`;img.alt=card.name;img.className=compact?'':'card-image';img.onerror=()=>{img.remove();w.prepend(showFallback(card,compact));};w.append(img);if(compact){const c=document.createElement('div');c.className='played-card-copy';c.innerHTML='';const n=document.createElement('strong');n.textContent=card.name;c.append(n);const v=document.createElement('small');v.textContent=`Valor ${card.value}`;c.append(v);const e=document.createElement('span');e.textContent=card.effect;c.append(e);w.append(c);}else{const i=document.createElement('div');i.className='card-info';const v=document.createElement('span');v.className='value';v.textContent=card.value;i.append(v);const n=document.createElement('span');n.className='card-name';n.textContent=card.name;i.append(n);w.append(i);}return w;}
+function details(c){const m=$('modal-carta'),d=$('contenido-modal-carta');if(!m||!d){alert(`${c.name}\nValor: ${c.value}\n${c.effect}`);return;}d.replaceChildren();const im=document.createElement('img');im.className='modal-card-image';im.src=c.image;im.onerror=()=>{im.remove();d.prepend(showFallback(c));};d.append(im);const h=document.createElement('h3');h.textContent=c.name;d.append(h);const p=document.createElement('p');p.textContent=`Valor: ${c.value}`;d.append(p);const e=document.createElement('p');e.textContent=c.effect;d.append(e);m.classList.remove('hidden');}
+function renderHistory(g){[$('historial-partida'),$('historial-completo')].filter(Boolean).forEach(el=>{el.replaceChildren();(g.historial||[]).slice().reverse().forEach(x=>{const li=document.createElement('li');if(x.tipo)li.classList.add('event-'+x.tipo);const t=document.createElement('time');t.textContent=new Date(x.timestamp||Date.now()).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});li.append(t,document.createTextNode(x.texto));el.append(li);});});}
+function renderLobby(){if(!room)return;$('codigo-sala').textContent=code;const ps=Object.values(room.jugadores||{});$('estado-lobby').textContent=`${ps.length} de ${room.maxJugadores} jugadores`;$('lista-jugadores').replaceChildren();ps.forEach(p=>{const li=document.createElement('li');li.textContent=p.nombre+(p.uid===room.creadorUid?' · ANFITRIÓN':'');$('lista-jugadores').append(li);});$('btn-iniciar-partida').disabled=!(user?.uid===room.creadorUid&&ps.length>=2);$('btn-iniciar-partida').textContent=user?.uid===room.creadorUid?'Iniciar partida':'Esperando al anfitrión';screen('pantalla-lobby');}
+function renderGame(){const g=room?.juego;if(!g)return;if(g.estado==='finalizada'){renderFinal(g);return;}screen('pantalla-juego');$('numero-ronda').textContent=g.ronda;$('cartas-restantes').textContent=g.mazo?.length||0;$('objetivo-puntos').textContent=room.puntosObjetivo||5;const zone=$('zona-jugadores');zone.replaceChildren();Object.values(room.jugadores||{}).forEach(p=>{const tile=document.createElement('div');tile.className='player-tile'+(g.turnoUid===p.uid?' active':'')+(g.eliminados?.[p.uid]?' eliminated':'');const head=document.createElement('div');head.className='player-head';const n=document.createElement('strong');n.textContent=p.nombre;head.append(n);const badge=document.createElement('span');badge.className='pill';badge.textContent=g.eliminados?.[p.uid]?'ELIMINADO':g.turnoUid===p.uid?'EN TURNO':'EN MESA';head.append(badge);tile.append(head);const score=document.createElement('span');score.className='player-score';score.textContent=`Puntos: ${g.puntos?.[p.uid]||0} / ${room.puntosObjetivo}`;tile.append(score);const stack=document.createElement('div');stack.className='player-played';const t=document.createElement('span');t.className='played-title';t.textContent='Cartas jugadas';stack.append(t);const played=(g.jugadas||[]).filter(x=>x.uid===p.uid);if(!played.length){const e=document.createElement('small');e.textContent='Aún no ha jugado.';stack.append(e);}played.forEach(x=>stack.append(visual(x.carta,true)));tile.append(stack);zone.append(tile);});const hand=$('mi-mano');hand.replaceChildren();(g.manos?.[user?.uid]||[]).forEach(c=>hand.append(visual(c,false,()=>{if(g.turnoUid!==user?.uid){details(c);return;}if(!g.cartaRobada){msg('Primero roba una carta.');return;}if(g.cartaJugada){details(c);return;}playCard(c.uid);})));const played=$('cartas-jugadas');played.replaceChildren();(g.jugadas||[]).slice(-10).reverse().forEach(x=>{const p=document.createElement('span');p.className='pill';p.textContent=`${x.nombre}: ${x.carta.name} (${x.carta.value})`;played.append(p);});renderHistory(g);const mine=g.turnoUid===user?.uid;$('btn-robar').disabled=!mine||g.cartaRobada||g.cartaJugada||!g.mazo?.length;$('btn-pasar').disabled=!mine||!g.cartaJugada;$('mensaje-turno').textContent=mine?g.cartaRobada?'Elige una carta para jugar.':'Es tu turno: roba una carta.':'Esperando a '+nameOf(g.turnoUid)+'.';}
+function renderFinal(g){screen('pantalla-juego');$('zona-jugadores').replaceChildren();const panel=document.createElement('div');panel.className='panel';const h=document.createElement('h2');h.textContent=`🏆 Gana ${g.ganadorNombre||'la partida'}`;panel.append(h);const p=document.createElement('p');p.textContent=`La partida terminó en la ronda ${g.ronda}.`;panel.append(p);const ul=document.createElement('ol');Object.values(room.jugadores||{}).sort((a,b)=>(g.puntos[b.uid]||0)-(g.puntos[a.uid]||0)).forEach(x=>{const li=document.createElement('li');li.textContent=`${x.nombre}: ${g.puntos[x.uid]||0} puntos`;ul.append(li);});panel.append(ul);const b=document.createElement('button');b.className='primary';b.textContent='Volver al inicio';b.onclick=leaveRoom;panel.append(b);$('zona-jugadores').append(panel);$('mi-mano').replaceChildren();$('btn-robar').disabled=true;$('btn-pasar').disabled=true;renderHistory(g);}
+function targets(g,actor){return Object.values(room.jugadores||{}).filter(p=>p.uid!==actor&&!g.eliminados?.[p.uid]&&!g.protegidos?.[p.uid]);}
+function chooseTarget(g,actor,promptText='Elige jugador por número:'){const ts=targets(g,actor);if(!ts.length)return null;const choice=window.prompt(promptText+'\n'+ts.map((p,i)=>`${i+1}. ${p.nombre}`).join('\n'));const i=Number(choice)-1;return Number.isInteger(i)&&i>=0&&i<ts.length?ts[i]:null;}
+function eliminate(g,uid,reason){if(!uid||g.eliminados?.[uid])return;g.eliminados=g.eliminados||{};g.eliminados[uid]=true;log(g,`${nameOf(uid)} queda eliminado de la ronda. ${reason||''}`,'warning');}
+function alive(g){return Object.values(room.jugadores||{}).filter(p=>!g.eliminados?.[p.uid]);}
+function winNow(g,uid,reason){g.ganadorRondaUid=uid;g.ganadorRondaMotivo=reason;log(g,`${nameOf(uid)} gana la ronda: ${reason}`,'effect');}
+function resolveEffect(g,actor,card){const id=card.id;let target,guess,hand,own=(g.manos[actor]||[])[0];
+ if(id==='01'||id==='02'){target=chooseTarget(g,actor,'Elige a quién observar:');if(target){const th=(g.manos[target.uid]||[])[0];if(th)alert(`Carta de ${target.nombre}: ${th.name} (valor ${th.value})`);log(g,`${nameOf(actor)} observa la mano de ${target.nombre}.`,'effect');if(id==='01'){g.apuestaTheon=g.apuestaTheon||{};g.apuestaTheon[target.uid]=actor;log(g,`${nameOf(actor)} apuesta por la victoria de ${target.nombre}: si gana la ronda, ${nameOf(actor)} recibirá un punto adicional.`,'effect');}}if(id==='02')g.efectosEspeciales=g.efectosEspeciales||{},g.efectosEspeciales[actor]='contraataque';}
+ else if(Number(id[0])===1){target=chooseTarget(g,actor,'Elige jugador al que adivinar la carta:');if(target){guess=window.prompt(`Adivina el valor de la carta de ${target.nombre} (0, 2–9; no se puede adivinar 1):`);if(guess!==null){guess=Number(guess);if(guess!==1&&Number.isInteger(guess)){hand=(g.manos[target.uid]||[])[0];if(hand&&hand.value===guess){if(hand.id==='02'){g.descartes=g.descartes||[];g.descartes.push({uid:target.uid,carta:hand});g.manos[target.uid]=[(g.mazo||[]).pop()].filter(Boolean);const attackerOther=(g.manos[actor]||[]).pop();if(attackerOther)g.descartes.push({uid:actor,carta:attackerOther});log(g,`Arya protege a ${target.nombre}: descarta su carta y ${nameOf(actor)} descarta también su otra carta.`,'effect');}else{eliminate(g,target.uid,`Adivinación correcta de ${nameOf(actor)}.`);if(id==='18'){const replacement=(g.mazo||[]).pop();if(replacement){g.manos[target.uid]=[replacement];delete g.eliminados[target.uid];log(g,`${target.nombre} sobrevive gracias al efecto especial de Jon Snow y roba otra carta.`,'effect');}}}}else log(g,`${nameOf(actor)} falla la adivinación contra ${target.nombre}.`,'effect');}}}}
+ else if(Number(id[0])===2){target=chooseTarget(g,actor,'Elige a quién mirar:');if(target){const th=(g.manos[target.uid]||[])[0];alert(`${target.nombre} tiene: ${th?.name||'sin carta'} (valor ${th?.value??'—'})`);log(g,`${nameOf(actor)} mira en secreto la carta de ${target.nombre}.`,'effect');if(id==='22'){const t2=chooseTarget(g,actor,'Elige un segundo jugador para mirar:');if(t2){const c=(g.manos[t2.uid]||[])[0];alert(`${t2.nombre} tiene: ${c?.name||'sin carta'} (valor ${c?.value??'—'})`);log(g,`${nameOf(actor)} mira también la carta de ${t2.nombre}.`,'effect');}}}}
+ else if(id==='31'||id==='32'||id==='33'||id==='71'){target=chooseTarget(g,actor,'Elige rival para comparar cartas:');if(target){const a=(g.manos[actor]||[])[0],b=(g.manos[target.uid]||[])[0];if(a&&b){let kill; if(id==='33'){const which=window.prompt('¿Qué carta debe morir? Escribe MAYOR o MENOR:','MENOR');kill=(String(which).toUpperCase().startsWith('MAY')?'higher':'lower');}else kill=id==='71'?'higher':'lower';let loser;if(a.value===b.value){log(g,`Comparación entre ${nameOf(actor)} (${a.value}) y ${target.nombre} (${b.value}): empate, nadie es eliminado.`,'effect');}else{loser=(kill==='higher'?(a.value>b.value?actor:target.uid):(a.value<b.value?actor:target.uid));eliminate(g,loser,`Comparación entre ${nameOf(actor)} (${a.value}) y ${target.nombre} (${b.value}).`);log(g,`Comparación: ${nameOf(actor)} (${a.value}) contra ${target.nombre} (${b.value}). Pierde ${nameOf(loser)}.`,'effect');}}}}
+ else if(Number(id[0])===4){g.protegidos=g.protegidos||{};g.protegidos[actor]=true;if(id==='43')g.bonusComparacion=g.bonusComparacion||{},g.bonusComparacion[actor]=1;log(g,`${nameOf(actor)} queda protegido hasta su siguiente turno${id==='43'?' y recibe +1 a la comparación final':''}.`,'effect');}
+ else if(Number(id[0])===5){target=chooseTarget(g,actor,'Elige jugador que deberá descartar y robar:');if(target){const old=(g.manos[target.uid]||[])[0];g.descartes=g.descartes||[];if(old)g.descartes.push({uid:target.uid,carta:old});const fresh=(g.mazo||[]).pop();if(fresh)g.manos[target.uid]=[fresh];log(g,`${target.nombre} descarta ${old?.name||'su carta'} y roba otra.`,'effect');if(old?.id==='81')eliminate(g,target.uid,'Descartó a Daenerys Targaryen por efecto ajeno.');if(old&&own&&old.id===own.id){winNow(g,actor,'se encontró una carta gemela mediante el efecto de la carta 5.');}}}
+ else if(id==='61'){const ps=alive(g);const hands=ps.map(p=>[p.uid,(g.manos[p.uid]||[])[0]]);for(let i=hands.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[hands[i],hands[j]]=[hands[j],hands[i]];}hands.forEach(([uid,c])=>{if(c)g.manos[uid]=[c];});log(g,'El Rey de la Noche mezcla e intercambia aleatoriamente las manos de los jugadores activos.','effect');}
+ else if(id==='62'){target=chooseTarget(g,actor,'Elige jugador con quien intercambiar la mano:');if(target){const a=g.manos[actor]||[],b=g.manos[target.uid]||[];g.manos[actor]=b;g.manos[target.uid]=a;log(g,`${nameOf(actor)} intercambia su mano con ${target.nombre}.`,'effect');}}
+ else if(id==='72'){const has=(g.manos[actor]||[]).some(c=>[5,6].includes(c.value));if(has||confirm('La carta Sansa permite descartarla voluntariamente según la ilustración. ¿Confirmas el descarte?')){log(g,'Sansa Stark se descarta voluntariamente.','effect');}}
+ else if(id==='81'){log(g,'Daenerys Targaryen permanece en juego; si se descarta por efecto ajeno, su portador queda eliminado.','effect');}
+ else if(id==='91'){target=chooseTarget(g,actor,'Elige a quién ataca Drogon:');if(target){const th=(g.manos[target.uid]||[])[0];if(th?.id==='81'){log(g,`Drogon ataca a ${target.nombre}, pero Daenerys sobrevive al ataque.`,'effect');}else eliminate(g,target.uid,`Drogon elimina a ${target.nombre}.`);}}
+}
+function resolveRound(g){if(g.estado==='finalizada'||g.rondaResuelta)return;g.rondaResuelta=true;const alivePs=alive(g);let winner=null;if(g.ganadorRondaUid&&alivePs.some(p=>p.uid===g.ganadorRondaUid))winner=room.jugadores[g.ganadorRondaUid];else if(alivePs.length===1)winner=alivePs[0];else{const cards=alivePs.map(p=>({p,c:(g.manos[p.uid]||[])[0]})).filter(x=>x.c);cards.sort((a,b)=>(b.c.value+(g.bonusComparacion?.[b.p.uid]||0))-(a.c.value+(g.bonusComparacion?.[a.p.uid]||0)));if(cards.length)winner=cards[0].p;if(cards.length>1&&cards[0].c.value+(g.bonusComparacion?.[cards[0].p.uid]||0)===cards[1].c.value+(g.bonusComparacion?.[cards[1].p.uid]||0)){log(g,'Empate en el valor final; se comparte la victoria de ronda solo visualmente y no se asigna punto automáticamente.','warning');winner=null;}}
+ if(winner){g.puntos[winner.uid]=(g.puntos[winner.uid]||0)+1;let extra=0;const bettor=g.apuestaTheon?.[winner.uid];if(bettor&&bettor!==winner.uid){g.puntos[bettor]=(g.puntos[bettor]||0)+1;extra=1;log(g,`${nameOf(bettor)} obtiene un punto adicional porque ${winner.nombre} ganó la ronda, tal como apostó con Theon.`,'effect');}log(g,`${winner.nombre} gana la ronda y obtiene 1 punto${extra?' adicional para '+nameOf(bettor):''}.`,'effect');}else log(g,'La ronda termina sin ganador claro por empate.','warning');
+ const objective=Number(room.puntosObjetivo)||5;const champion=Object.values(room.jugadores||{}).find(p=>(g.puntos[p.uid]||0)>=objective);if(champion){g.estado='finalizada';g.ganadorUid=champion.uid;g.ganadorNombre=champion.nombre;log(g,`${champion.nombre} alcanza el objetivo de ${objective} puntos y gana la partida.`,'effect');}else{g.ronda++;g.rondaResuelta=false;g.eliminados={};g.protegidos={};g.bonusComparacion={};g.efectosEspeciales={};g.ganadorRondaUid=null;g.apuestaTheon={};g.jugadas=[];g.mazo=makeDeck().sort(()=>Math.random()-.5);g.manos={};Object.values(room.jugadores||{}).forEach(p=>g.manos[p.uid]=[g.mazo.pop()]);g.turnoUid=Object.keys(room.jugadores||{})[Math.floor(Math.random()*Object.keys(room.jugadores||{}).length)];g.cartaRobada=false;g.cartaJugada=false;log(g,`Comienza la ronda ${g.ronda}. Empieza ${nameOf(g.turnoUid)}.`);}}
+async function updateGame(action){if(busy)return;busy=true;try{const snap=await db.ref(`salas/${code}`).once('value');const data=snap.val(),g=data?.juego;if(!g)throw Error('No hay una partida activa.');const result=await action(data,g);if(result!==false)await db.ref(`salas/${code}/juego`).set(g);}catch(e){error('No se pudo completar la acción',e);}finally{busy=false;}}
+async function createRoom(){try{const n=$('nombre-creador').value.trim();if(!n||n.length>20)throw Error('Escribe un nombre de hasta 20 caracteres.');const max=+$('numero-jugadores').value,target=+$('puntos-objetivo').value;if(max<2||max>8||target<1||target>20)throw Error('Revisa número de jugadores y puntos objetivo.');await ensureUser();let c;for(let i=0;i<10;i++){const x=Math.random().toString(36).slice(2,8).toUpperCase().replace(/[IO01]/g,'Z').slice(0,6);const r=db.ref('salas/'+x);if(!(await r.once('value')).exists()){c=x;await r.set({codigo:x,creadorUid:user.uid,maxJugadores:max,puntosObjetivo:target,estado:'esperando',jugadores:{[user.uid]:{uid:user.uid,nombre:n,unidoEn:Date.now()}}});break;}}if(!c)throw Error('No se pudo generar código. Reintenta.');listen(c);}catch(e){error('Error al crear sala',e);}}
+async function joinRoom(){try{const n=$('nombre-jugador').value.trim(),c=$('codigo-partida').value.trim().toUpperCase();if(!n)throw Error('Escribe tu nombre.');if(!/^[A-Z2-9]{6}$/.test(c))throw Error('El código debe tener seis caracteres.');await ensureUser();const r=db.ref('salas/'+c),s=await r.once('value'),d=s.val();if(!d)throw Error('No existe esa sala.');if(d.estado!=='esperando')throw Error('La partida ya ha empezado.');if(!d.jugadores?.[user.uid]&&Object.keys(d.jugadores||{}).length>=d.maxJugadores)throw Error('La sala está completa.');await r.child('jugadores/'+user.uid).set({uid:user.uid,nombre:n,unidoEn:Date.now()});listen(c);}catch(e){error('Error al unirse',e);}}
+async function startGame(){try{const s=await db.ref('salas/'+code).once('value'),d=s.val();if(d.creadorUid!==user.uid)throw Error('Solo el anfitrión puede iniciar.');const ps=Object.values(d.jugadores||{});if(ps.length<2)throw Error('Se necesitan al menos dos jugadores.');const deck=makeDeck().sort(()=>Math.random()-.5),hands={},puntos={};ps.forEach(p=>{hands[p.uid]=[deck.pop()];puntos[p.uid]=0;});const first=ps[Math.floor(Math.random()*ps.length)];const g={ronda:1,mazo:deck,manos:hands,puntos,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],historial:[],eliminados:{},protegidos:{},bonusComparacion:{},estado:'jugando'};log(g,`Empieza la partida. Primera ronda: ${first.nombre}.`);await db.ref('salas/'+code).update({estado:'jugando',juego:g});}catch(e){error('No se pudo iniciar',e);}}
+async function draw(){await updateGame((d,g)=>{if(g.turnoUid!==user.uid)throw Error('No es tu turno.');if(g.cartaRobada||g.cartaJugada)throw Error('Ya robaste en este turno.');if(!g.mazo?.length){resolveRound(g);return;}const c=g.mazo.pop();g.manos[user.uid].push(c);g.cartaRobada=true;log(g,`${nameOf(user.uid)} roba una carta.`);if(!g.mazo.length)log(g,'Se ha robado la última carta del mazo; la ronda terminará al completar este turno.');});}
+async function playCard(uid){await updateGame((d,g)=>{if(g.turnoUid!==user.uid)throw Error('No es tu turno.');if(!g.cartaRobada||g.cartaJugada)throw Error('Debes robar primero y solo puedes jugar una carta.');const hand=g.manos[user.uid]||[],i=hand.findIndex(c=>c.uid===uid);if(i<0)throw Error('La carta ya no está en tu mano.');const card=hand.splice(i,1)[0];g.manos[user.uid]=hand;g.jugadas.push({uid:user.uid,nombre:nameOf(user.uid),carta:card});g.cartaJugada=true;log(g,`${nameOf(user.uid)} juega ${card.name} (valor ${card.value}). ${card.effect}`,'effect');resolveEffect(g,user.uid,card);if(alive(g).length<=1||g.ganadorRondaUid||!g.mazo.length)resolveRound(g);});}
+async function endTurn(){await updateGame((d,g)=>{if(g.turnoUid!==user.uid||!g.cartaJugada)throw Error('Debes jugar una carta en tu turno.');if(g.estado==='finalizada')return;const ps=Object.values(d.jugadores||{}),alivePs=ps.filter(p=>!g.eliminados?.[p.uid]);if(alivePs.length<=1||!g.mazo.length){resolveRound(g);return;}delete g.protegidos[user.uid];const idx=ps.findIndex(p=>p.uid===user.uid);let next=null;for(let k=1;k<=ps.length;k++){const p=ps[(idx+k)%ps.length];if(!g.eliminados?.[p.uid]){next=p;break;}}if(!next){resolveRound(g);return;}g.turnoUid=next.uid;g.cartaRobada=false;g.cartaJugada=false;Object.keys(g.manos||{}).forEach(uid=>{if(g.manos[uid]?.length>1)g.manos[uid]=[g.manos[uid][g.manos[uid].length-1]];});log(g,`${nameOf(user.uid)} termina turno. Juega ${next.nombre}.`);});}
+function detach(){if(ref&&cb)ref.off('value',cb);ref=null;cb=null;}
+function listen(c){detach();code=c;ref=db.ref('salas/'+c);cb=s=>{if(!s.exists()){msg('La sala ya no existe.');screen('pantalla-inicio');return;}room=s.val();if(room.estado==='jugando')renderGame();else if(room.estado==='finalizada')renderGame();else renderLobby();};ref.on('value',cb,e=>error('Error de conexión a sala',e));}
+async function leaveRoom(){try{if(code&&user){const s=await db.ref('salas/'+code).once('value'),d=s.val();if(d?.creadorUid===user.uid)await db.ref('salas/'+code).update({estado:'cerrada'});else await db.ref('salas/'+code+'/jugadores/'+user.uid).remove();}}catch(e){console.warn(e);}detach();code=null;room=null;screen('pantalla-inicio');msg('');}
+async function ensureUser(){if(auth.currentUser){user=auth.currentUser;return user;}const c=await auth.signInAnonymously();user=c.user;return user;}
+function wire(){const on=(id,fn)=>$(id)?.addEventListener('click',fn);on('btn-crear-partida',()=>screen('pantalla-crear'));on('btn-unirse-partida',()=>screen('pantalla-unirse'));on('btn-volver-inicio-crear',()=>screen('pantalla-inicio'));on('btn-volver-inicio-unirse',()=>screen('pantalla-inicio'));on('btn-generar-partida',createRoom);on('btn-unirse',joinRoom);on('btn-iniciar-partida',startGame);on('btn-robar',draw);on('btn-pasar',endTurn);on('btn-salir-sala',leaveRoom);on('btn-salir-juego',leaveRoom);on('btn-copiar-codigo',async()=>{try{await navigator.clipboard.writeText(code);msg('Código copiado.');}catch(e){prompt('Copia el código',code);}});on('btn-historial',()=>$('modal-historial')?.classList.remove('hidden'));on('cerrar-modal-historial',()=>$('modal-historial')?.classList.add('hidden'));on('cerrar-modal-carta',()=>$('modal-carta')?.classList.add('hidden'));$('codigo-partida')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6));}
+function boot(){try{if(!window.firebase||!cfg)throw Error('Falta Firebase o su configuración.');if(!firebase.apps.length)firebase.initializeApp(cfg);auth=firebase.auth();db=firebase.database();auth.onAuthStateChanged(u=>{user=u;if(u)status('Firebase conectado','ok');});auth.signInAnonymously().catch(e=>{status('Error de autenticación','bad');error('Firebase',e);});wire();}catch(e){status('Error de configuración','bad');error('No se pudo iniciar',e);}}
+document.addEventListener('DOMContentLoaded',boot);
 })();
