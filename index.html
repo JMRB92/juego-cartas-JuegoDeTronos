@@ -73,7 +73,9 @@
       <div class="game-stats"><div><small>RONDA</small><strong id="numero-ronda">1</strong></div><div><small>MAZO</small><strong id="cartas-restantes">0</strong></div><div><small>OBJETIVO</small><strong id="objetivo-puntos">5</strong></div></div>
       <div class="panel"><h3>Jugadores</h3><div id="zona-jugadores" class="players-grid"></div></div>
       <div class="panel"><h3>Tu mano</h3><p class="help">Roba una carta y juega una carta por turno. Las cartas se muestran por su valor.</p><div id="mi-mano" class="hand"></div><div class="button-row"><button id="btn-robar" class="secondary">Robar carta</button><button id="btn-pasar" class="primary">Terminar turno</button></div><p id="mensaje-turno" class="help"></p></div>
-      <div class="panel"><h3>Cartas jugadas</h3><div id="cartas-jugadas" class="played-list"></div></div>
+      <div class="panel"><div class="section-heading"><h3>Historial de la partida</h3><button id="btn-historial" class="secondary small-button" type="button">Ver historial completo</button></div><div id="cartas-jugadas" class="played-list"></div><ol id="historial-partida" class="event-log"></ol></div>
+      <div id="modal-carta" class="card-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle de carta"><button id="cerrar-modal-carta" class="modal-close" type="button" aria-label="Cerrar">×</button><div id="contenido-modal-carta"></div></div>
+      <div id="modal-historial" class="history-modal hidden" role="dialog" aria-modal="true" aria-label="Historial completo"><div class="history-modal-head"><h3>Historial de la partida</h3><button id="cerrar-modal-historial" class="secondary" type="button">Cerrar</button></div><ol id="historial-completo" class="event-log"></ol></div>
     </section>
 
     <div id="mensaje-global" class="global-message" role="status" aria-live="polite"></div>

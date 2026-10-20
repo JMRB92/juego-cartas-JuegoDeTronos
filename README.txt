@@ -1,33 +1,21 @@
-JUEGO DE CARTAS JDT — PAQUETE CONSOLIDADO
+JUEGO DE CARTAS JDT — ACTUALIZACIÓN DE INTERFAZ
 
-CONTENIDO
-- index.html: estructura de pantallas.
-- styles.css: diseño adaptable a móvil y ordenador.
-- firebase-config.js: configuración Firebase del proyecto actual.
-- app.js: creación/entrada a salas, lobby y prototipo básico de turnos.
-- firebase-rules.json: reglas iniciales orientativas para pruebas.
+Incluye:
+- index.html, styles.css, app.js y firebase-config.js.
+- Las 27 imágenes de cartas en assets/cartas/.
+- Paneles individuales de jugadores y resaltado del turno.
+- Cartas jugadas en columna bajo cada jugador.
+- Historial cronológico persistido en el estado de la partida de Firebase.
+- Animación de entrada de cartas y diseño adaptable a móvil.
+- Ampliación de cartas con doble clic en la mano.
+- Alternativa textual si la imagen no carga.
 
 INSTALACIÓN
-1. Descarga y descomprime este paquete.
-2. En tu repositorio GitHub, sube/reemplaza index.html, styles.css, firebase-config.js y app.js en la raíz.
-3. No borres la carpeta assets/cartas que ya contiene tus 27 PNG originales. Este paquete no incluye las imágenes originales porque no estaban disponibles para adjuntarlas desde el repositorio en esta sesión.
-4. En GitHub, abre Settings > Pages y comprueba que publica desde la rama y carpeta correctas.
-5. Espera la publicación y recarga la web con Ctrl+F5.
+1. Descarga y descomprime el ZIP.
+2. En tu repositorio, sustituye index.html, styles.css y app.js por los de esta carpeta.
+3. Sustituye/añade assets/cartas con la carpeta incluida.
+4. Conserva tu firebase-config.js actual si tiene la configuración Firebase que ya funciona. El archivo incluido es una copia de la configuración previa; no la cambies si ya funciona.
+5. Haz commit y espera a que GitHub Pages publique los cambios.
 
-FIREBASE
-- Debe estar activado Authentication > Sign-in method > Anonymous.
-- Realtime Database debe ser la misma URL incluida en firebase-config.js.
-- Revisa las reglas en Firebase Console. No publiques reglas abiertas a usuarios no autenticados.
-- Las reglas del archivo firebase-rules.json son para una prueba inicial y no son una política de seguridad final para partidas públicas.
-
-IMPORTANTE SOBRE EL ESTADO DEL JUEGO
-Este paquete consolida el diagnóstico de salas y añade un esqueleto funcional de turnos para comprobar sincronización. No se debe considerar la versión definitiva de las reglas de juego: los efectos especiales exactos de las cartas deben contrastarse con las imágenes originales. El motor de esta versión no implementa todavía todos esos efectos ni una resolución completa de ronda/puntuación. No uses dinero ni datos personales.
-
-DIAGNÓSTICO
-En la consola del navegador se registran por separado:
-- [UNIRSE] Leyendo sala
-- [UNIRSE] Resultado de lectura
-- [UNIRSE] Escribiendo jugador en
-- [Error al unirse a la sala] con código y mensaje real
-
-Si el error aparece antes de “Resultado de lectura”, falla la lectura/autenticación. Si aparece tras “Escribiendo jugador en”, falla la escritura o sus permisos.
+IMPORTANTE SOBRE LAS REGLAS
+La versión base del motor de juego solo implementa robar, jugar una carta y pasar el turno. No implementa los efectos de las cartas, comparaciones, eliminación de jugadores ni adjudicación de puntos. Por eso esta actualización registra de forma explícita la carta jugada y deja claro en el historial que su efecto no se ha resuelto automáticamente. No inventa ganadores ni puntuaciones. Para implementar resolución de comparaciones, puntuación y pantalla final real hay que integrar las reglas originales de cada carta en el motor compartido de Firebase.
