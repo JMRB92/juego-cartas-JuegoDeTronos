@@ -24,12 +24,18 @@
         <p class="eyebrow">LA BATALLA POR EL TRONO</p>
         <h1>Tu estrategia.<br><span>Tu casa. Tu victoria.</span></h1>
         <p class="muted">Crea una sala privada o únete a tus amigos con un código.</p>
-        <div class="button-row">
+        <div class="button-row home-actions">
           <button id="btn-crear-partida" class="primary">Crear partida</button>
           <button id="btn-unirse-partida" class="secondary">Unirse a partida</button>
         </div>
+        <div class="button-row home-help">
+          <button id="btn-reglas" class="secondary">♜ Reglas de las cartas</button>
+          <button id="btn-como-jugar" class="secondary">Cómo se juega</button>
+        </div>
       </div>
-      <div class="notice"><strong>Partidas privadas</strong><p>Comparte el código de seis caracteres para invitar a otros jugadores. No necesitas crear una cuenta.</p></div>
+      <div class="notice"><strong>Una mesa. Muchas estrategias.</strong><p>Crea una sala privada, comparte el código de seis caracteres y juega con tus amigos. No necesitas crear una cuenta.</p></div>
+      <div id="modal-reglas" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Reglas del juego"><div class="info-modal-card"><button id="cerrar-reglas" class="modal-close" aria-label="Cerrar">×</button><p class="eyebrow">GUÍA DE JUEGO</p><h2>Reglas de las cartas</h2><p>Los efectos siguientes son una guía orientativa basada en las ilustraciones disponibles. Comprueba las cartas originales para resolver cualquier discrepancia.</p><ul><li><b>Valor 1:</b> adivina el valor de la carta de otro jugador; si aciertas, puede quedar eliminado.</li><li><b>Valor 2:</b> mira en secreto la carta de otro jugador.</li><li><b>Valor 3:</b> compara cartas y aplica el efecto de la ilustración.</li><li><b>Valor 4:</b> protección temporal.</li><li><b>Valor 5:</b> obliga a otro jugador a descartar, con una condición especial de pareja.</li><li><b>Valor 6:</b> intercambia cartas según el efecto de la carta.</li><li><b>Valor 7:</b> comparación o descarte especial.</li><li><b>Valor 8:</b> evita descartar esta carta por efecto.</li><li><b>Valor 9:</b> efecto de eliminación especial.</li></ul><p>Las cartas 01, 02 y 18 tienen efectos especiales. La descripción mostrada al seleccionar cada carta ayuda a recordar su función.</p></div></div>
+      <div id="modal-como-jugar" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Cómo se juega"><div class="info-modal-card"><button id="cerrar-como-jugar" class="modal-close" aria-label="Cerrar">×</button><p class="eyebrow">EN TRES PASOS</p><h2>Cómo se juega</h2><ol><li>El anfitrión crea una sala y comparte el código con los demás.</li><li>En tu turno, roba una carta. Verás las dos cartas de tu mano.</li><li>Selecciona una, lee su efecto y pulsa <b>Jugar esta carta</b>. Conserva la otra para el siguiente turno.</li></ol><p>El objetivo es acumular puntos de ronda hasta alcanzar la puntuación fijada al crear la sala. Las eliminaciones, protecciones e intercambios se resuelven según las reglas de las cartas.</p></div></div>
     </section>
 
     <section id="pantalla-crear" class="screen hidden">
@@ -74,6 +80,7 @@
       <div class="panel"><h3>Jugadores</h3><div id="zona-jugadores" class="players-grid"></div></div>
       <div class="panel"><h3>Tu mano</h3><p class="help">Roba una carta y juega una carta por turno. Las cartas se muestran por su valor.</p><div id="mi-mano" class="hand"></div><div class="button-row"><button id="btn-robar" class="secondary">Robar carta</button><button id="btn-pasar" class="primary">Terminar turno</button></div><p id="mensaje-turno" class="help"></p></div>
       <div class="panel"><div class="section-heading"><h3>Historial de la partida</h3><button id="btn-historial" class="secondary small-button" type="button">Ver historial completo</button></div><div id="cartas-jugadas" class="played-list"></div><ol id="historial-partida" class="event-log"></ol></div>
+      <div id="evento-visual" class="event-overlay hidden" role="status" aria-live="polite"></div>
       <div id="modal-carta" class="card-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle de carta"><button id="cerrar-modal-carta" class="modal-close" type="button" aria-label="Cerrar">×</button><div id="contenido-modal-carta"></div></div>
       <div id="modal-historial" class="history-modal hidden" role="dialog" aria-modal="true" aria-label="Historial completo"><div class="history-modal-head"><h3>Historial de la partida</h3><button id="cerrar-modal-historial" class="secondary" type="button">Cerrar</button></div><ol id="historial-completo" class="event-log"></ol></div>
     </section>

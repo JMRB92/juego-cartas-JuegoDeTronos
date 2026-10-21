@@ -1,28 +1,34 @@
-JUEGO DE CARTAS JDT — PAQUETE INTEGRADO
+JUEGO DE CARTAS JDT — ACTUALIZACIÓN DE INTERFAZ
 
-Contenido:
-- index.html, styles.css, app.js, firebase-config.js
-- assets/cartas/: las 27 ilustraciones originales
-- firebase-rules.json: reglas actuales de referencia
+Incluye:
+- index.html, styles.css, app.js y firebase-config.js.
+- Las 27 imágenes de cartas en assets/cartas/.
+- Paneles individuales de jugadores y resaltado del turno.
+- Cartas jugadas en columna bajo cada jugador.
+- Historial cronológico persistido en el estado de la partida de Firebase.
+- Animación de entrada de cartas y diseño adaptable a móvil.
+- Ampliación de cartas con doble clic en la mano.
+- Alternativa textual si la imagen no carga.
 
-INSTALACIÓN EN GITHUB PAGES
-1. Haz una copia de seguridad del repositorio actual.
-2. Descomprime este paquete.
-3. Sube/reemplaza index.html, styles.css y app.js en la raíz del repositorio.
-4. Sube la carpeta assets/cartas completa conservando los nombres 01.png, 02.png, etc.
-5. Conserva firebase-config.js si contiene tu configuración Firebase funcional.
-6. No sustituyas las reglas de Firebase a ciegas. Las reglas de prototipo permiten a cualquier usuario autenticado modificar salas; no son apropiadas para un lanzamiento público.
-7. Haz commit y espera a que GitHub Pages publique los cambios. Prueba primero con dos navegadores/dispositivos.
+INSTALACIÓN
+1. Descarga y descomprime el ZIP.
+2. En tu repositorio, sustituye index.html, styles.css y app.js por los de esta carpeta.
+3. Sustituye/añade assets/cartas con la carpeta incluida.
+4. Conserva tu firebase-config.js actual si tiene la configuración Firebase que ya funciona. El archivo incluido es una copia de la configuración previa; no la cambies si ya funciona.
+5. Haz commit y espera a que GitHub Pages publique los cambios.
 
-REGLAS IMPLEMENTADAS
-- Salas multijugador Firebase, robo y juego de carta, turnos, objetivos de puntos, registro de eventos, eliminación de ronda, comparaciones y pantalla final.
-- Efectos interpretados desde las ilustraciones originales: adivinación de valor, mirar cartas, comparación mayor/menor, protección, intercambio de manos, descarte forzado, ataque de Drogon y puntos adicionales de Theon.
-- La carta de reserva textual aparece si falla una imagen.
+IMPORTANTE SOBRE LAS REGLAS
+La versión base del motor de juego solo implementa robar, jugar una carta y pasar el turno. No implementa los efectos de las cartas, comparaciones, eliminación de jugadores ni adjudicación de puntos. Por eso esta actualización registra de forma explícita la carta jugada y deja claro en el historial que su efecto no se ha resuelto automáticamente. No inventa ganadores ni puntuaciones. Para implementar resolución de comparaciones, puntuación y pantalla final real hay que integrar las reglas originales de cada carta en el motor compartido de Firebase.
+
+
+MEJORAS DE INTERFAZ (versión actualizada)
+- Pantalla inicial renovada con accesos a Reglas y Cómo se juega.
+- Tras robar, las cartas se pueden seleccionar para leer su descripción antes de confirmar con "Jugar esta carta".
+- Aviso compartido de carta jugada, con cierre manual y desaparición automática a los 2 segundos.
+- Al terminar el mazo, se compara el valor de las cartas que quedan en mano, se informa del ganador de ronda y se muestran las puntuaciones. La partida finaliza al alcanzar el objetivo.
+- Los jugadores marcados en el estado compartido como protegidos aparecen en verde.
 
 LIMITACIONES IMPORTANTES
-Las ilustraciones contienen reglas adaptadas y algunas frases/efectos no son inequívocos en el material disponible. La implementación de esas cartas se ha interpretado a partir de su texto visible; no se debe considerar una transcripción oficial de reglas. Antes de una partida competitiva, revisa especialmente los efectos especiales de Arya, Jon Snow, Cersei/Jaime, el Rey de la Noche, Sansa, Daenerys y Drogon.
-
-Los efectos que requieren elegir jugador/valor usan cuadros de diálogo del navegador. Son funcionales como primera versión, pero no tan pulidos como un selector gráfico dentro del tablero.
-
-SEGURIDAD
-La configuración web Firebase no es una contraseña. Sin embargo, las reglas de Realtime Database deben restringir quién puede leer/escribir cada sala y qué acciones puede realizar cada jugador. El cliente no es una autoridad segura contra trampas; para uso público se recomienda validar movimientos en un backend confiable.
+- Las reglas de efectos individuales no están implementadas de forma completa en este prototipo. Las descripciones son orientativas y algunos textos de las cartas originales son ambiguos.
+- Las animaciones de ataque con elección de número y las comparaciones específicas solo podrán mostrarse cuando esos efectos estén implementados y produzcan eventos de juego. Esta versión anuncia la carta jugada y muestra el resultado de ronda, pero no simula todavía todos los efectos especiales.
+- No se ha podido probar una partida real con varios navegadores conectados a Firebase; se ha comprobado la sintaxis JavaScript.
