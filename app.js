@@ -68,43 +68,36 @@
   function makeDeck() {
     // 27 cartas del mazo conocido. Las imágenes originales se cargan desde assets/cartas.
     const ids=["01","02","11","12","13","14","15","16","17","18","21","22","23","31","32","33","41","42","43","51","52","61","62","71","72","81","91"];
-    return ids.map((id,i)=>({id,value:Number(id[0]),name:cardName(id),image:`assets/cartas/${id}.png`,uid:`${id}-${i}`}));
+    return ids.map((id,i)=>({id,value:Number(id[0]),name:cardName(id),characteristic:CARD_META[id]?.[1]||"Carta",character:CARD_META[id]?.[2]||"",effect:cardEffect(id),image:`assets/cartas/${id}.png`,uid:`${id}-${i}`}));
   }
-  function cardName(id) {
-    const names={"01":"El Bufón","02":"El Asesino","11":"Carta de valor 1","12":"Carta de valor 1","13":"Carta de valor 1","14":"Carta de valor 1","15":"Carta de valor 1","16":"Carta de valor 1","17":"Carta de valor 1","18":"Carta de valor 1","21":"Carta de valor 2","22":"Carta de valor 2","23":"Carta de valor 2","31":"Carta de valor 3","32":"Carta de valor 3","33":"Carta de valor 3","41":"Carta de valor 4","42":"Carta de valor 4","43":"Carta de valor 4","51":"Carta de valor 5","52":"Carta de valor 5","61":"Carta de valor 6","62":"Carta de valor 6","71":"Carta de valor 7","72":"Carta de valor 7","81":"Carta de valor 8","91":"Carta de valor 9"};
-    return names[id] || `Carta ${id}`;
-  }
+  const CARD_META = {
+    "01": [0,"Bufón","Theon Greyjoy"], "02":[0,"Asesino","Arya Stark"],
+    "11":[1,"Guerrero","Euron Greyjoy"], "12":[1,"Guerrero","Ramsay Bolton"],
+    "13":[1,"Guerrero","Khal Drogo"], "14":[1,"Guerrero","Tormund"],
+    "15":[1,"Guerrero","El Perro"], "16":[1,"Guerrero","Bronn"],
+    "17":[1,"Guerrero","Brienne de Tarth"], "18":[1,"Guerrero","Jon Snow"],
+    "21":[2,"Curioso","Missandei"], "22":[2,"Curioso","Brandon Stark"], "23":[2,"Curioso","Samwell Tarly"],
+    "31":[3,"Estratega","Meñique"], "32":[3,"Estratega","Varys"], "33":[3,"Estratega","Tyrion Lannister"],
+    "41":[4,"Aliado","Jorah Mormont"], "42":[4,"Aliado","Lyanna Mormont"], "43":[4,"Aliado","Gusano Gris"],
+    "51":[5,"Gemelo","Cersei Lannister"], "52":[5,"Gemelo","Jaime Lannister"],
+    "61":[6,"Rey","Rey de la Noche"], "62":[6,"Rey","Joffrey Baratheon"],
+    "71":[7,"Lady","Olenna Tyrell"], "72":[7,"Lady","Sansa Stark"],
+    "81":[8,"Khaleesi","Daenerys Targaryen"], "91":[9,"Dragón","Drogon"]
+  };
+  function cardName(id) { const m=CARD_META[String(id)]; return m ? `${m[1]} · ${m[2]}` : `Carta ${id}`; }
   function cardEffect(id) {
     const effects={
-      "01":"Mira la carta de otro jugador. Si gana la ronda, obtienes un punto adicional.",
-      "02":"Si un jugador te ataca, puedes descartar esta carta para contraatacar según las reglas de la partida.",
-      "11":"Elige a un jugador y adivina el valor de su carta. Si aciertas, queda eliminado de la ronda.",
-      "12":"Elige a un jugador y adivina el valor de su carta. Si aciertas, queda eliminado de la ronda.",
-      "13":"Elige a un jugador y adivina el valor de su carta. Si aciertas, queda eliminado de la ronda.",
-      "14":"Elige a un jugador y adivina el valor de su carta. Si aciertas, queda eliminado de la ronda.",
-      "15":"Elige a un jugador y adivina el valor de su carta. Si aciertas, queda eliminado de la ronda.",
-      "16":"Elige a un jugador y adivina el valor de su carta. Si aciertas, queda eliminado de la ronda.",
-      "17":"Elige a un jugador y adivina el valor de su carta. Si aciertas, queda eliminado de la ronda.",
-      "18":"Regla especial de Jon Nieve: al morir, roba otra carta. Confirma la interpretación con las reglas originales.",
-      "21":"Elige a un jugador y mira su carta sin mostrarla a los demás.",
-      "22":"Elige a un jugador y mira su carta; puede permitir una segunda observación según las reglas originales.",
-      "23":"Elige a un jugador y mira su carta sin mostrarla a los demás.",
-      "31":"Compara tu carta con la de otro jugador; la de menor valor queda eliminada.",
-      "32":"Compara tu carta con la de otro jugador; la de menor valor queda eliminada.",
-      "33":"Elige un jugador y compara las cartas; aplica el resultado indicado en la carta.",
-      "41":"Quedas protegido hasta tu siguiente turno.",
-      "42":"Quedas protegido hasta tu siguiente turno.",
-      "43":"Quedas protegido hasta tu siguiente turno y suma un punto a la comparación final.",
-      "51":"Elige a un jugador. Si tiene la otra carta de valor 5, ganas la ronda; si no, descarta su carta. Si descarta un 8, queda eliminado.",
-      "52":"Elige a un jugador. Si tiene la otra carta de valor 5, ganas la ronda; si no, descarta su carta. Si descarta un 8, queda eliminado.",
-      "61":"Intercambia tu carta con la de otro jugador que elijas.",
-      "62":"Intercambia tu carta con la de otro jugador que elijas.",
-      "71":"Compara tu carta con la de otro jugador; la de menor valor queda eliminada.",
-      "72":"Si conservas una carta de valor 5 o 6, debes descartar esta carta. También puedes descartarla voluntariamente.",
-      "81":"Si descartas esta carta por un efecto, quedas eliminado.",
-      "91":"Elige a un jugador para eliminarlo, salvo que esté protegido por Daenerys; consulta la regla original para el efecto exacto."
-    };
-    return effects[id] || "Consulta la ilustración original de la carta. Esta descripción es orientativa.";
+      "01":"Elige a un jugador. Si gana la ronda, tú sumas un punto adicional. Aparece una gota azul junto a su nombre durante la ronda.",
+      "02":"Si un efecto te fuera a eliminar mientras conservas esta carta, descártala, roba otra carta y no mueres.",
+      "11":"Elige un jugador y adivina el valor de su carta. Si aciertas, queda eliminado.","12":"Elige un jugador y adivina el valor de su carta. Si aciertas, queda eliminado.","13":"Elige un jugador y adivina el valor de su carta. Si aciertas, queda eliminado.","14":"Elige un jugador y adivina el valor de su carta. Si aciertas, queda eliminado.","15":"Elige un jugador y adivina el valor de su carta. Si aciertas, queda eliminado.","16":"Elige un jugador y adivina el valor de su carta. Si aciertas, queda eliminado.","17":"Elige un jugador y adivina el valor de su carta. Si aciertas, queda eliminado.",
+      "18":"Si un efecto te fuera a eliminar, descarta Jon Snow, roba otra carta y no mueres.",
+      "21":"Elige un jugador y mira su carta en secreto.","22":"Elige hasta dos jugadores y mira sus cartas. Con dos jugadores en la partida solo puedes mirar la del otro jugador.","23":"Elige un jugador y mira su carta en secreto.",
+      "31":"Compara tu carta con la de otro jugador. La de menor valor queda eliminada.","32":"Compara tu carta con la de otro jugador. La de menor valor queda eliminada.","33":"Elige si debe morir la carta mayor o la menor y luego elige un jugador para comparar. Si te atacan con un 3 o un 7 mientras conservas esta carta, puedes redirigir el ataque a otro jugador.",
+      "41":"Quedas protegido hasta que vuelva a comenzar tu siguiente turno. No puedes ser elegido como objetivo.","42":"Quedas protegido hasta que vuelva a comenzar tu siguiente turno. No puedes ser elegido como objetivo. Al final de ronda sumas +1 al valor de tu carta.","43":"Quedas protegido hasta que vuelva a comenzar tu siguiente turno. No puedes ser elegido como objetivo.",
+      "51":"Elige un jugador. Si tiene el otro 5, ganas la ronda. Si no, descarta su carta; si era un 8, queda eliminado.","52":"Elige un jugador. Si tiene el otro 5, ganas la ronda. Si no, descarta su carta; si era un 8, queda eliminado.",
+      "61":"Reúne las cartas que conservan todos los jugadores vivos y repártelas de nuevo al azar entre ellos.","62":"Elige a otro jugador e intercambia tu carta con la suya.",
+      "71":"Compara tu carta con la de otro jugador. La de mayor valor queda eliminada.","72":"Si conservas un 5 o un 6, debes descartar esta carta. También puedes descartarla voluntariamente.","81":"Si descartas esta carta por el efecto de otra carta, quedas eliminado.","91":"Elige a un jugador no protegido. Si tiene un 8, no ocurre nada. Si tiene a Jon Snow, descarta esa carta y roba otra; en otro caso queda eliminado."
+    }; return effects[String(id)] || "Consulta las reglas de esta carta.";
   }
   function cardImagePath(card) {
     const id=String(card?.id || '').trim();
@@ -324,73 +317,70 @@
     if(entry.cartaVista){if(entry.uid===user?.uid){const sub=document.createElement('p');sub.textContent=`Carta que viste de ${entry.objetivoNombre||'tu objetivo'}:`;content.appendChild(sub);content.appendChild(makeCardVisual(entry.cartaVista,false));}else{const sub=document.createElement('p');sub.textContent='Carta del objetivo: oculta (solo la puede volver a ver quien jugó la carta).';content.appendChild(sub);const blank=document.createElement('div');blank.className='hidden-card-placeholder';blank.textContent='CARTA OCULTA';content.appendChild(blank);}}
     modal.classList.remove('hidden');
   }
+  function eliminateOrSave(g, data, uid, cause, entry) {
+    const hand=g.manos?.[uid]||[]; const held=hand[0];
+    if(!held) return {saved:false, message:`${data.jugadores?.[uid]?.nombre||'El jugador'} ya estaba eliminado.`};
+    if(String(held.id)==="02" || String(held.id)==="18") {
+      const discarded=hand.shift();
+      if(!Array.isArray(g.jugadas))g.jugadas=[];
+      g.jugadas.push({uid,nombre:data.jugadores?.[uid]?.nombre||'Jugador',carta:discarded,resultado:`Descartó ${discarded.name} y se salvó del efecto: ${cause}.`});
+      const replacement=(g.mazo||[]).pop();g.manos[uid]=replacement?[replacement]:[];
+      return {saved:true,message:replacement?`${data.jugadores?.[uid]?.nombre||'El jugador'} descarta ${discarded.name}, roba otra carta y no muere.`:`${data.jugadores?.[uid]?.nombre||'El jugador'} se salva, pero no quedan cartas para robar.`};
+    }
+    if(!Array.isArray(g.jugadas))g.jugadas=[];
+    if(String(held.id)==="81") { g.jugadas.push({uid,nombre:data.jugadores?.[uid]?.nombre||'Jugador',carta:held,resultado:`Daenerys fue descartada por un efecto y su jugador queda eliminado.`}); }
+    g.manos[uid]=[]; return {saved:false,message:`${data.jugadores?.[uid]?.nombre||'El jugador'} queda eliminado.`};
+  }
   async function resolveCardEffect(g, data, actorUid, card, entry) {
     const actorName=(data.jugadores?.[actorUid]||{}).nombre||'Jugador';
-    const value=Number(card.value??String(card.id||'0')[0]);
-    if(String(card.id)==='01'){
-      const target=chooseTarget(g,data,actorUid,'Carta 0: elige a un jugador. Si gana la ronda, tú sumas un punto adicional.');
-      if(target){g.apuestasTheon=g.apuestasTheon||{};g.apuestasTheon[target.uid]=actorUid;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} eligió a ${target.nombre} con la carta 0. Si gana la ronda, ${actorName} obtiene un punto adicional.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta});}
+    const id=String(card.id), value=Number(card.value??id[0]);
+    const addPlayed=(uid,c,result)=>{if(!Array.isArray(g.jugadas))g.jugadas=[];g.jugadas.push({uid,nombre:data.jugadores?.[uid]?.nombre||'Jugador',carta:c,resultado:result,timestamp:Date.now()});};
+    if(id==='01'){
+      const target=chooseTarget(g,data,actorUid,'Theon Greyjoy: elige a un jugador al que llorar.');
+      if(target){g.apuestasTheon=g.apuestasTheon||{};g.apuestasTheon[target.uid]=actorUid;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} llora por ${target.nombre}. Si gana la ronda, ${actorName} obtiene un punto adicional.`;announce(g,'carta',entry.resultado,{carta});}
       return;
     }
+    if(id==='02'){entry.resultado='Arya Stark queda descartada. Su habilidad defensiva se aplica si un efecto intenta eliminar a quien la conserva.';return;}
     if(value===1){
-      const target=chooseTarget(g,data,actorUid,'Carta 1: elige a un jugador para intentar adivinar su carta.');
-      if(!target){entry.resultado='No se eligió objetivo; el efecto no se aplicó.';return;}
-      const raw=window.prompt('Elige el valor que quieres adivinar (0, 1, 2, 3, 4, 5, 6, 7, 8 o 9):','2');
-      if(raw===null){entry.resultado='Se canceló la adivinación; no se aplicó el efecto.';return;}
-      const guess=Number(raw), targetHand=g.manos[target.uid]||[], targetCard=targetHand[0];
-      if(!Number.isInteger(guess)||guess<0||guess>9){throw new Error('Introduce un valor entre 0 y 9.');}
-      const hit=Number(targetCard?.value)===guess;
-      entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.numeroElegido=guess;
-      if(hit){g.manos[target.uid]=[];entry.resultado=`${actorName} jugó un 1 contra ${target.nombre}, eligió el número ${guess} y acertó. ${target.nombre} queda eliminado de la ronda.`;}
-      else entry.resultado=`${actorName} jugó un 1 contra ${target.nombre}, eligió el número ${guess} y falló.`;
+      const target=chooseTarget(g,data,actorUid,'Guerrero: elige un jugador para adivinar su carta.');if(!target){entry.resultado='No se eligió objetivo.';return;}
+      const raw=window.prompt('¿Qué valor tiene su carta? Introduce un número del 0 al 9 (no puedes elegir 1).','2');if(raw===null){entry.resultado='Adivinación cancelada.';return;}
+      const guess=Number(raw);if(!Number.isInteger(guess)||guess<0||guess>9||guess===1)throw new Error('Elige un valor entero entre 0 y 9, excepto 1.');
+      const targetCard=(g.manos?.[target.uid]||[])[0];const hit=Number(targetCard?.value)===guess;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.numeroElegido=guess;
+      if(hit){const res=eliminateOrSave(g,data,target.uid,`ataque de ${actorName}`,entry);entry.resultado=`${actorName} eligió ${target.nombre} y adivinó ${guess}: acierto. ${res.message}`;}else entry.resultado=`${actorName} eligió ${target.nombre} y adivinó ${guess}: fallo.`;
       addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta,numeroElegido:guess,acierto:hit});return;
     }
     if(value===2){
-      const target=chooseTarget(g,data,actorUid,'Carta 2: elige a un jugador para mirar su carta en secreto.');
-      if(!target){entry.resultado='No se eligió objetivo; el efecto no se aplicó.';return;}
-      const targetCard=(g.manos[target.uid]||[])[0];
-      if(targetCard){entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.cartaVista=targetCard;entry.resultado=`${actorName} miró en secreto la carta de ${target.nombre}.`;showPrivatePeek(targetCard,target.nombre||'Jugador');addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',`${actorName} miró en secreto la carta de ${target.nombre}. Solo ${actorName} puede verla.`,{carta});}
-      return;
+      const count=id==='22'?2:1;const seen=[];for(let i=0;i<count;i++){const target=chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1}${count===2?' de hasta dos':''} cuya carta quieres ver en secreto.`);if(!target)break;const targetCard=(g.manos?.[target.uid]||[])[0];if(targetCard){seen.push({target,targetCard});entry.cartaVista=targetCard;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(i===0)showPrivatePeek(targetCard,target.nombre||'Jugador');}}
+      entry.cartasVistas=seen.map(x=>({uid:x.target.uid,nombre:x.target.nombre,carta:x.targetCard}));entry.resultado=seen.length?`${actorName} miró en secreto la carta de ${seen.map(x=>x.target.nombre).join(' y ')}.`:'No se eligió objetivo.';addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',`${entry.resultado} Solo ${actorName} puede verlas.`,{carta});return;
     }
-    if(value===3||String(card.id)==='71'){
-      const target=chooseTarget(g,data,actorUid,`Carta ${value}: elige a un jugador para comparar las cartas.`);
-      if(!target){entry.resultado='No se eligió objetivo; el efecto no se aplicó.';return;}
-      const mine=(g.manos[actorUid]||[])[0], theirs=(g.manos[target.uid]||[])[0];
-      if(!mine||!theirs){entry.resultado='No se pudo comparar porque falta una carta.';return;}
-      const mv=Number(mine.value),tv=Number(theirs.value);let eliminated=null;
-      if(String(card.id)==='71'){if(mv>tv)eliminated=actorUid;else if(tv>mv)eliminated=target.uid;}else{if(mv<tv)eliminated=actorUid;else if(tv<mv)eliminated=target.uid;}
-      if(eliminated)g.manos[eliminated]=[];
+    if(value===3||id==='71'){
+      let dieRule=id==='71'?'higher':'lower';if(id==='33'){const answer=window.prompt('Tyrion Lannister: escribe MAYOR para eliminar la carta de mayor valor o MENOR para eliminar la de menor valor.','MENOR');if(answer===null){entry.resultado='Comparación cancelada.';return;}const a=answer.trim().toLowerCase();if(!['mayor','menor'].includes(a))throw new Error('Escribe MAYOR o MENOR.');dieRule=a==='mayor'?'higher':'lower';}
+      const target=chooseTarget(g,data,actorUid,`Estratega: elige a un jugador para comparar (muere la carta ${dieRule==='higher'?'mayor':'menor'}).`);if(!target){entry.resultado='No se eligió objetivo.';return;}
+      const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(!mine||!theirs){entry.resultado='No se pudo comparar: falta una carta.';return;}
+      const mv=Number(mine.value)+(id==='42'?1:0),tv=Number(theirs.value);let loser=null;if(mv!==tv)loser=(dieRule==='higher'?(mv>tv?actorUid:target.uid):(mv<tv?actorUid:target.uid));
       entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.cartaComparada=theirs;
-      entry.resultado=mv===tv?`Comparación entre ${actorName} (${mv}) y ${target.nombre} (${tv}): empate, nadie queda eliminado.`:`Comparación entre ${actorName} (${mv}) y ${target.nombre} (${tv}): ${data.jugadores[eliminated]?.nombre||'Un jugador'} queda eliminado${String(card.id)==='71'?' (la carta de mayor valor pierde)':' (la carta de menor valor pierde)'}.`;
+      if(loser){const res=eliminateOrSave(g,data,loser,`comparación de ${actorName}`,entry);entry.resultado=`Comparación: ${actorName} (${mv}) contra ${target.nombre} (${tv}). ${res.message}`;}else entry.resultado=`Comparación: ${actorName} (${mv}) contra ${target.nombre} (${tv}). Empate; nadie muere.`;
       addHistoryEntry(g,entry.resultado,'effect');announce(g,'comparacion',entry.resultado,{carta:mine,carta2:theirs});return;
     }
-    if(value===4){g.protegidos=g.protegidos||{};g.protegidos[actorUid]=true;entry.resultado=`${actorName} queda PROTEGIDO hasta el inicio de su siguiente turno.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta});return;}
+    if(value===4){g.protegidos=g.protegidos||{};g.protegidos[actorUid]=true;if(id==='42'){g.bonusFinalUid=actorUid;}entry.resultado=`${actorName} queda PROTEGIDO hasta que vuelva a comenzar su turno.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta});return;}
     if(value===5){
-      const target=chooseTarget(g,data,actorUid,'Carta 5: elige a un jugador para que descarte su carta.');
-      if(!target){entry.resultado='No se eligió objetivo; el efecto no se aplicó.';return;}
-      const targetHand=g.manos[target.uid]||[],discarded=targetHand[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;
-      if(!discarded){entry.resultado=`${target.nombre} ya estaba eliminado.`;return;}
-      const twin=Number(discarded.value)===5;
-      if(twin){g.forcedWinnerUid=target.uid;entry.resultado=`${target.nombre} tenía la otra carta de valor 5 y gana la ronda.`;announce(g,'ronda',entry.resultado,{carta,puntuaciones:{...(g.puntos||{})}});}
-      else if(Number(discarded.value)===8){g.jugadas.push({uid:target.uid,nombre:target.nombre,carta:discarded,resultado:`${target.nombre} descartó el 8 por el efecto de la carta 5 de ${actorName} y quedó eliminado.`});g.manos[target.uid]=[];entry.cartaDescartada=discarded;entry.resultado=`${target.nombre} descarta un 8 y queda eliminado de la ronda.`;announce(g,'carta',entry.resultado,{carta});}
-      else {g.jugadas.push({uid:target.uid,nombre:target.nombre,carta:discarded,resultado:`${target.nombre} descartó esta carta por el efecto de la carta 5 de ${actorName}.`});g.manos[target.uid]=[];entry.cartaDescartada=discarded;entry.resultado=`${target.nombre} descarta ${discarded.name||'su carta'} por el efecto de ${actorName}.`;announce(g,'carta',entry.resultado,{carta:discarded});}
-      addHistoryEntry(g,entry.resultado,'effect');return;
+      const target=chooseTarget(g,data,actorUid,'Gemelo: elige un jugador.');if(!target){entry.resultado='No se eligió objetivo.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(!held){entry.resultado=`${target.nombre} ya está eliminado.`;return;}
+      if(Number(held.value)===5){g.forcedWinnerUid=actorUid;entry.resultado=`${target.nombre} tenía el otro 5. ${actorName} gana la ronda.`;announce(g,'ronda',entry.resultado,{carta});}
+      else {addPlayed(target.uid,held,`${target.nombre} descarta ${held.name} por el efecto de ${actorName}.`);g.manos[target.uid]=[];entry.cartaDescartada=held;if(Number(held.value)===8)entry.resultado=`${target.nombre} descarta a Daenerys (8) y queda eliminado.`;else entry.resultado=`${target.nombre} descarta ${held.name}.`;announce(g,'carta',entry.resultado,{carta:held});}addHistoryEntry(g,entry.resultado,'effect');return;
     }
-    if(value===6){
-      const target=chooseTarget(g,data,actorUid,'Carta 6: elige a un jugador con quien intercambiar tu carta.');
-      if(!target){entry.resultado='No se eligió objetivo; el efecto no se aplicó.';return;}
-      const mine=(g.manos[actorUid]||[]),theirs=(g.manos[target.uid]||[]);
-      if(mine.length&&theirs.length){const tmp=mine[0];g.manos[actorUid]=[theirs[0]];g.manos[target.uid]=[tmp];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta});}return;
+    if(id==='61'){
+      const alive=Object.keys(data.jugadores||{}).filter(uid=>(g.manos?.[uid]||[]).length>0);const pool=alive.map(uid=>g.manos[uid][0]).sort(()=>Math.random()-.5);alive.forEach((uid,i)=>g.manos[uid]=[pool[i]]);entry.resultado=`${actorName} jugó al Rey de la Noche: las cartas de los jugadores vivos se repartieron de nuevo al azar.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta});return;
     }
-    if(value===9){
-      const target=chooseTarget(g,data,actorUid,'Carta 9: elige a un jugador para eliminarlo. No puedes elegir jugadores protegidos.');
-      if(!target){entry.resultado='No se eligió objetivo; el efecto no se aplicó.';return;}
-      const targetCard=(g.manos[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;
-      if(Number(targetCard?.value)===8){entry.resultado=`${target.nombre} tiene un 8; el efecto de la carta 9 no le afecta.`;}
-      else if(String(targetCard?.id)==='18'){
-        g.jugadas.push({uid:target.uid,nombre:target.nombre,carta:targetCard,resultado:`${target.nombre} descartó a Jon Nieve por el efecto de la carta 9.`});
-        const replacement=(g.mazo||[]).pop();g.manos[target.uid]=replacement?[replacement]:[];entry.cartaDescartada=targetCard;entry.resultado=replacement?`${target.nombre} tenía a Jon Nieve: descarta esa carta y roba otra.`:`${target.nombre} tenía a Jon Nieve, pero no quedan cartas para robar; queda eliminado.`;
-      } else {g.manos[target.uid]=[];entry.resultado=`${actorName} jugó un 9 contra ${target.nombre}. ${target.nombre} queda eliminado de la ronda.`;}
+    if(id==='62'){
+      const target=chooseTarget(g,data,actorUid,'Joffrey: elige a un jugador para intercambiar las cartas.');if(!target){entry.resultado='No se eligió objetivo.';return;}const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(mine&&theirs){g.manos[actorUid]=[theirs];g.manos[target.uid]=[mine];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;announce(g,'carta',entry.resultado,{carta});}return;
+    }
+    if(id==='72') {const hand=g.manos?.[actorUid]||[];const other=hand.find(c=>c.uid!==card.uid);if([5,6].includes(Number(other?.value))){entry.resultado=`Sansa se descarta obligatoriamente porque conservas un ${other.value}.`;}else{const ans=window.confirm('¿Quieres descartar Sansa voluntariamente? Pulsa Aceptar para descartarla o Cancelar para conservarla.');if(!ans){g.manos[actorUid]=[...hand,card];entry.resultado='Sansa se conserva en la mano.';return;}}return;}
+    if(id==='81'){entry.resultado='Daenerys no tiene efecto al jugarse normalmente. Si se descarta por un efecto, su portador queda eliminado.';return;}
+    if(id==='91'){
+      const target=chooseTarget(g,data,actorUid,'Drogon: elige un jugador no protegido para atacar.');if(!target){entry.resultado='No se eligió objetivo.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;
+      if(Number(held?.value)===8)entry.resultado=`${target.nombre} tiene a Daenerys (8): Drogon no puede eliminarlo.`;
+      else if(String(held?.id)==='18'){const res=eliminateOrSave(g,data,target.uid,'ataque de Drogon',entry);entry.resultado=`${target.nombre} tenía a Jon Snow. ${res.message}`;}
+      else {const res=eliminateOrSave(g,data,target.uid,`ataque de Drogon de ${actorName}`,entry);entry.resultado=res.message;}
       addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta});return;
     }
   }
@@ -401,9 +391,11 @@
       normalizeGameForAction(g,user.uid);
       if(!g.cartaRobada) throw new Error("Primero debes robar una carta.");
       if(g.cartaJugada) throw new Error("Ya has jugado una carta en este turno.");
+      g.manos=g.manos||{};g.manos[user.uid]=Array.isArray(g.manos[user.uid])?g.manos[user.uid]:[];g.jugadas=Array.isArray(g.jugadas)?g.jugadas:[];g.historial=Array.isArray(g.historial)?g.historial:[];g.protegidos=g.protegidos||{};g.apuestasTheon=g.apuestasTheon||{};
       const hand=g.manos[user.uid];
       if(index<0||index>=hand.length) throw new Error("La carta seleccionada ya no está en tu mano.");
       const card=hand.splice(index,1)[0];
+      card.value=Number(card.value??String(card.id)[0]);card.name=cardName(card.id);card.characteristic=CARD_META[String(card.id)]?.[1]||"Carta";card.character=CARD_META[String(card.id)]?.[2]||"";card.effect=cardEffect(card.id);
       const playerName=(data.jugadores?.[user.uid]||{}).nombre||"Jugador";
       const entry={uid:user.uid,nombre:playerName,carta:card,resultado:`${playerName} jugó ${card.name||`la carta ${card.id||""}`}.`,timestamp:Date.now()};
       g.jugadas.push(entry);g.cartaJugada=true;g.manos[user.uid]=hand;g.ultimaCartaJugada=card;
@@ -429,7 +421,7 @@
       if((g.mazo||[]).length===0 || g.forcedWinnerUid) {
         const alive=players.filter(p=>(g.manos[p.uid]||[]).length>0);
         let high=-1, winners=[];
-        alive.forEach(p=>{const c=(g.manos[p.uid]||[])[0],v=Number(c?.value??0);if(v>high){high=v;winners=[p];}else if(v===high)winners.push(p);});
+        alive.forEach(p=>{const c=(g.manos[p.uid]||[])[0],v=Number(c?.value??0)+((g.bonusFinalUid===p.uid)?1:0);if(v>high){high=v;winners=[p];}else if(v===high)winners.push(p);});
         if(g.forcedWinnerUid && data.jugadores?.[g.forcedWinnerUid]) winners=[data.jugadores[g.forcedWinnerUid]];
         if(winners.length===1) {
           const winner=winners[0];g.puntos=g.puntos||{};g.puntos[winner.uid]=(g.puntos[winner.uid]||0)+1;
@@ -442,13 +434,13 @@
             g.ronda=(g.ronda||1)+1;
             const newDeck=makeDeck().sort(()=>Math.random()-.5), newHands={};
             players.forEach(p=>{newHands[p.uid]=[newDeck.pop()];});
-            g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.forcedWinnerUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
+            g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
           }
         } else {
           addHistoryEntry(g,'La ronda termina en empate; no se asigna punto.','round');
           g.eventoVisual={id:Date.now()+Math.random(),tipo:'ronda',texto:'La ronda termina en empate. Nadie suma puntos.',puntuaciones:{...(g.puntos||{})}};
           g.ronda=(g.ronda||1)+1;const newDeck=makeDeck().sort(()=>Math.random()-.5),newHands={};players.forEach(p=>newHands[p.uid]=[newDeck.pop()]);
-          g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.forcedWinnerUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
+          g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
         }
       }
       await db.ref(`salas/${currentCode}/juego`).set(g);
