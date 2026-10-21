@@ -341,9 +341,9 @@
       const target=chooseTarget(g,data,actorUid,'Guerrero: elige un jugador para adivinar su carta.');if(!target){entry.resultado='No se eligió objetivo.';return;}
       const raw=window.prompt('¿Qué valor tiene su carta? Introduce un número del 0 al 9 (no puedes elegir 1).','2');if(raw===null){entry.resultado='Adivinación cancelada.';return;}
       const guess=Number(raw);if(!Number.isInteger(guess)||guess<0||guess>9||guess===1)throw new Error('Elige un valor entero entre 0 y 9, excepto 1.');
-      const targetCard=(g.manos?.[target.uid]||[])[0];const hit=Number(targetCard?.value)===guess;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.numeroElegido=guess;
+      const targetCard=(g.manos?.[target.uid]||[])[0];if(!targetCard)throw new Error('El jugador seleccionado ya no tiene una carta en la mano.');const targetValue=Number(targetCard.value??String(targetCard.id)[0]);const hit=targetValue===guess;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.numeroElegido=guess;
       if(hit){const res=eliminateOrSave(g,data,target.uid,`ataque de ${actorName}`,entry);entry.resultado=`${actorName} eligió ${target.nombre} y adivinó ${guess}: acierto. ${res.message}`;}else entry.resultado=`${actorName} eligió ${target.nombre} y adivinó ${guess}: fallo.`;
-      addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta,numeroElegido:guess,acierto:hit});return;
+      addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta:card,numeroElegido:guess,acierto:hit});return;
     }
     if(value===2){
       const count=id==='22'?2:1;const seen=[];for(let i=0;i<count;i++){const target=chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1}${count===2?' de hasta dos':''} cuya carta quieres ver en secreto.`);if(!target)break;const targetCard=(g.manos?.[target.uid]||[])[0];if(targetCard){seen.push({target,targetCard});entry.cartaVista=targetCard;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(i===0)showPrivatePeek(targetCard,target.nombre||'Jugador');}}
