@@ -1,0 +1,9 @@
+Correcciones de esta revisión
+
+1. Corregido el error crítico de referencia: los efectos intentaban usar una variable llamada `carta` que no existía dentro de resolveCardEffect (el parámetro se llama `card`). Eso lanzaba ReferenceError antes de guardar el estado, de modo que la carta no llegaba a la pila, no se aplicaba el efecto y el botón de terminar turno seguía desactivado.
+2. Corregida la referencia de la carta en los anuncios compartidos para las cartas 0, 2, 4, 5, 6, 9 y efectos relacionados.
+3. Evitada la recuperación automática de una mano vacía al robar: podía resucitar a jugadores eliminados de la ronda.
+4. El cambio de turno busca ahora al siguiente jugador que conserve una carta, en lugar de dar turno a un eliminado.
+5. Incrementada la versión de los recursos en index.html para evitar que el navegador siga usando app.js/styles.css antiguos desde la caché.
+
+Validación realizada: `node --check app.js` pasa correctamente. No se ha podido ejecutar una partida multijugador real contra Firebase desde este entorno.

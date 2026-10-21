@@ -272,13 +272,9 @@
       normalizeGameForAction(g,user.uid);
       if(g.cartaRobada||g.cartaJugada) throw new Error("Ya has robado una carta en este turno.");
       if(!g.mazo.length) throw new Error("No quedan cartas en el mazo.");
-      // Reparación de compatibilidad: si una sala antigua no tiene la carta inicial
-      // de este jugador, se repone antes de robar para que la mano llegue a dos cartas.
-      if(g.manos[user.uid].length===0) {
-        if(!g.mazo.length) throw new Error("No quedan cartas para recuperar tu mano. Inicia una ronda nueva.");
-        g.manos[user.uid].push(g.mazo.pop());
-        addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"Un jugador"} recupera la carta inicial que faltaba en su mano.`);
-      }
+      // Una mano vacía significa que el jugador está eliminado de la ronda.
+      // No se le debe repartir una carta automáticamente, porque eso lo resucitaría.
+      if(g.manos[user.uid].length===0) throw new Error("Estás eliminado de esta ronda y no puedes robar cartas.");
       const card=g.mazo.pop();
       if(!card) throw new Error("No se ha podido robar una carta del mazo.");
       g.manos[user.uid].push(card); g.cartaRobada=true;
@@ -337,7 +333,7 @@
     const addPlayed=(uid,c,result)=>{if(!Array.isArray(g.jugadas))g.jugadas=[];g.jugadas.push({uid,nombre:data.jugadores?.[uid]?.nombre||'Jugador',carta:c,resultado:result,timestamp:Date.now()});};
     if(id==='01'){
       const target=chooseTarget(g,data,actorUid,'Theon Greyjoy: elige a un jugador al que llorar.');
-      if(target){g.apuestasTheon=g.apuestasTheon||{};g.apuestasTheon[target.uid]=actorUid;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} llora por ${target.nombre}. Si gana la ronda, ${actorName} obtiene un punto adicional.`;announce(g,'carta',entry.resultado,{carta});}
+      if(target){g.apuestasTheon=g.apuestasTheon||{};g.apuestasTheon[target.uid]=actorUid;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} llora por ${target.nombre}. Si gana la ronda, ${actorName} obtiene un punto adicional.`;announce(g,'carta',entry.resultado,{carta:card});}
       return;
     }
     if(id==='02'){entry.resultado='Arya Stark queda descartada. Su habilidad defensiva se aplica si un efecto intenta eliminar a quien la conserva.';return;}
@@ -351,7 +347,7 @@
     }
     if(value===2){
       const count=id==='22'?2:1;const seen=[];for(let i=0;i<count;i++){const target=chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1}${count===2?' de hasta dos':''} cuya carta quieres ver en secreto.`);if(!target)break;const targetCard=(g.manos?.[target.uid]||[])[0];if(targetCard){seen.push({target,targetCard});entry.cartaVista=targetCard;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(i===0)showPrivatePeek(targetCard,target.nombre||'Jugador');}}
-      entry.cartasVistas=seen.map(x=>({uid:x.target.uid,nombre:x.target.nombre,carta:x.targetCard}));entry.resultado=seen.length?`${actorName} miró en secreto la carta de ${seen.map(x=>x.target.nombre).join(' y ')}.`:'No se eligió objetivo.';addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',`${entry.resultado} Solo ${actorName} puede verlas.`,{carta});return;
+      entry.cartasVistas=seen.map(x=>({uid:x.target.uid,nombre:x.target.nombre,carta:x.targetCard}));entry.resultado=seen.length?`${actorName} miró en secreto la carta de ${seen.map(x=>x.target.nombre).join(' y ')}.`:'No se eligió objetivo.';addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',`${entry.resultado} Solo ${actorName} puede verlas.`,{carta:card});return;
     }
     if(value===3||id==='71'){
       let dieRule=id==='71'?'higher':'lower';if(id==='33'){const answer=window.prompt('Tyrion Lannister: escribe MAYOR para eliminar la carta de mayor valor o MENOR para eliminar la de menor valor.','MENOR');if(answer===null){entry.resultado='Comparación cancelada.';return;}const a=answer.trim().toLowerCase();if(!['mayor','menor'].includes(a))throw new Error('Escribe MAYOR o MENOR.');dieRule=a==='mayor'?'higher':'lower';}
@@ -362,17 +358,17 @@
       if(loser){const res=eliminateOrSave(g,data,loser,`comparación de ${actorName}`,entry);entry.resultado=`Comparación: ${actorName} (${mv}) contra ${target.nombre} (${tv}). ${res.message}`;}else entry.resultado=`Comparación: ${actorName} (${mv}) contra ${target.nombre} (${tv}). Empate; nadie muere.`;
       addHistoryEntry(g,entry.resultado,'effect');announce(g,'comparacion',entry.resultado,{carta:mine,carta2:theirs});return;
     }
-    if(value===4){g.protegidos=g.protegidos||{};g.protegidos[actorUid]=true;if(id==='42'){g.bonusFinalUid=actorUid;}entry.resultado=`${actorName} queda PROTEGIDO hasta que vuelva a comenzar su turno.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta});return;}
+    if(value===4){g.protegidos=g.protegidos||{};g.protegidos[actorUid]=true;if(id==='42'){g.bonusFinalUid=actorUid;}entry.resultado=`${actorName} queda PROTEGIDO hasta que vuelva a comenzar su turno.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;}
     if(value===5){
       const target=chooseTarget(g,data,actorUid,'Gemelo: elige un jugador.');if(!target){entry.resultado='No se eligió objetivo.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(!held){entry.resultado=`${target.nombre} ya está eliminado.`;return;}
-      if(Number(held.value)===5){g.forcedWinnerUid=actorUid;entry.resultado=`${target.nombre} tenía el otro 5. ${actorName} gana la ronda.`;announce(g,'ronda',entry.resultado,{carta});}
+      if(Number(held.value)===5){g.forcedWinnerUid=actorUid;entry.resultado=`${target.nombre} tenía el otro 5. ${actorName} gana la ronda.`;announce(g,'ronda',entry.resultado,{carta:card});}
       else {addPlayed(target.uid,held,`${target.nombre} descarta ${held.name} por el efecto de ${actorName}.`);g.manos[target.uid]=[];entry.cartaDescartada=held;if(Number(held.value)===8)entry.resultado=`${target.nombre} descarta a Daenerys (8) y queda eliminado.`;else entry.resultado=`${target.nombre} descarta ${held.name}.`;announce(g,'carta',entry.resultado,{carta:held});}addHistoryEntry(g,entry.resultado,'effect');return;
     }
     if(id==='61'){
-      const alive=Object.keys(data.jugadores||{}).filter(uid=>(g.manos?.[uid]||[]).length>0);const pool=alive.map(uid=>g.manos[uid][0]).sort(()=>Math.random()-.5);alive.forEach((uid,i)=>g.manos[uid]=[pool[i]]);entry.resultado=`${actorName} jugó al Rey de la Noche: las cartas de los jugadores vivos se repartieron de nuevo al azar.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta});return;
+      const alive=Object.keys(data.jugadores||{}).filter(uid=>(g.manos?.[uid]||[]).length>0);const pool=alive.map(uid=>g.manos[uid][0]).sort(()=>Math.random()-.5);alive.forEach((uid,i)=>g.manos[uid]=[pool[i]]);entry.resultado=`${actorName} jugó al Rey de la Noche: las cartas de los jugadores vivos se repartieron de nuevo al azar.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;
     }
     if(id==='62'){
-      const target=chooseTarget(g,data,actorUid,'Joffrey: elige a un jugador para intercambiar las cartas.');if(!target){entry.resultado='No se eligió objetivo.';return;}const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(mine&&theirs){g.manos[actorUid]=[theirs];g.manos[target.uid]=[mine];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;announce(g,'carta',entry.resultado,{carta});}return;
+      const target=chooseTarget(g,data,actorUid,'Joffrey: elige a un jugador para intercambiar las cartas.');if(!target){entry.resultado='No se eligió objetivo.';return;}const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(mine&&theirs){g.manos[actorUid]=[theirs];g.manos[target.uid]=[mine];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;announce(g,'carta',entry.resultado,{carta:card});}return;
     }
     if(id==='72') {const hand=g.manos?.[actorUid]||[];const other=hand.find(c=>c.uid!==card.uid);if([5,6].includes(Number(other?.value))){entry.resultado=`Sansa se descarta obligatoriamente porque conservas un ${other.value}.`;}else{const ans=window.confirm('¿Quieres descartar Sansa voluntariamente? Pulsa Aceptar para descartarla o Cancelar para conservarla.');if(!ans){g.manos[actorUid]=[...hand,card];entry.resultado='Sansa se conserva en la mano.';return;}}return;}
     if(id==='81'){entry.resultado='Daenerys no tiene efecto al jugarse normalmente. Si se descarta por un efecto, su portador queda eliminado.';return;}
@@ -381,7 +377,7 @@
       if(Number(held?.value)===8)entry.resultado=`${target.nombre} tiene a Daenerys (8): Drogon no puede eliminarlo.`;
       else if(String(held?.id)==='18'){const res=eliminateOrSave(g,data,target.uid,'ataque de Drogon',entry);entry.resultado=`${target.nombre} tenía a Jon Snow. ${res.message}`;}
       else {const res=eliminateOrSave(g,data,target.uid,`ataque de Drogon de ${actorName}`,entry);entry.resultado=res.message;}
-      addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta});return;
+      addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta:card});return;
     }
   }
   async function playCard(index) {
@@ -411,7 +407,10 @@
       if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
       if(!g.cartaJugada) throw new Error("Debes robar y jugar una carta antes de terminar el turno.");
       const players=Object.values(data.jugadores||{}), index=players.findIndex(p=>p.uid===user.uid);
-      const next=players[(index+1)%players.length];
+      const aliveNow=players.filter(p=>(g.manos?.[p.uid]||[]).length>0);
+      const candidates=players.length ? Array.from({length:players.length},(_,step)=>players[(index+step+1)%players.length]).filter(p=>(g.manos?.[p.uid]||[]).length>0) : [];
+      const next=candidates[0] || aliveNow[0] || players[(index+1+players.length)%Math.max(players.length,1)];
+      if(!next) throw new Error("No hay jugadores disponibles para continuar la partida.");
       addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"El jugador"} termina su turno. Ahora juega ${(next||{}).nombre||"el siguiente jugador"}.`);
       g.turnoUid=next.uid; g.cartaRobada=false; g.cartaJugada=false;
       // La protección dura hasta que vuelve a empezar el turno de ese jugador.
