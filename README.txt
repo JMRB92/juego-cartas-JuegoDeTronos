@@ -1,41 +1,31 @@
-JUEGO DE CARTAS JDT — ACTUALIZACIÓN DE INTERFAZ
+JUEGO DE CARTAS JDT — VERSIÓN CON EFECTOS DE CARTAS
 
-Incluye:
-- index.html, styles.css, app.js y firebase-config.js.
-- Las 27 imágenes de cartas en assets/cartas/.
-- Paneles individuales de jugadores y resaltado del turno.
-- Cartas jugadas en columna bajo cada jugador.
-- Historial cronológico persistido en el estado de la partida de Firebase.
-- Animación de entrada de cartas y diseño adaptable a móvil.
-- Ampliación de cartas con doble clic en la mano.
-- Alternativa textual si la imagen no carga.
+Contenido
+- index.html: estructura de la aplicación.
+- app.js: salas multijugador, turnos, efectos, eventos y puntuación.
+- styles.css: estilos y estados visuales.
+- firebase-config.js: configuración web de Firebase existente.
+- firebase-rules.json: reglas de referencia, revisar antes de usar en público.
+- assets/cartas/: ilustraciones originales.
 
-INSTALACIÓN
-1. Descarga y descomprime el ZIP.
-2. En tu repositorio, sustituye index.html, styles.css y app.js por los de esta carpeta.
-3. Sustituye/añade assets/cartas con la carpeta incluida.
-4. Conserva tu firebase-config.js actual si tiene la configuración Firebase que ya funciona. El archivo incluido es una copia de la configuración previa; no la cambies si ya funciona.
-5. Haz commit y espera a que GitHub Pages publique los cambios.
+Instalación
+1. Descomprime el ZIP.
+2. Sube los archivos y la carpeta assets a la raíz del repositorio de GitHub Pages.
+3. Conserva tu configuración Firebase si difiere de la incluida.
+4. Recarga con Ctrl+F5.
 
-IMPORTANTE SOBRE LAS REGLAS
-La versión base del motor de juego solo implementa robar, jugar una carta y pasar el turno. No implementa los efectos de las cartas, comparaciones, eliminación de jugadores ni adjudicación de puntos. Por eso esta actualización registra de forma explícita la carta jugada y deja claro en el historial que su efecto no se ha resuelto automáticamente. No inventa ganadores ni puntuaciones. Para implementar resolución de comparaciones, puntuación y pantalla final real hay que integrar las reglas originales de cada carta en el motor compartido de Firebase.
+Cambios principales
+- Carta 0: selecciona un objetivo; si ese jugador gana la ronda, quien jugó la carta obtiene un punto adicional.
+- Carta 1: selecciona objetivo y valor para adivinar; si acierta, elimina al objetivo.
+- Carta de valor 2: selecciona objetivo y muestra su carta en privado durante 3 segundos al jugador que la jugó. En el historial los demás no ven la carta revelada.
+- Cartas de comparación: se elige objetivo y se muestra el resultado con las cartas comparadas.
+- Carta 4: activa protección hasta el siguiente turno del jugador; el nombre muestra PROTEGIDO y no se puede elegir como objetivo.
+- Carta 5: elige objetivo. Si tiene la otra carta de valor 5, el objetivo gana la ronda. En caso contrario descarta su carta; si era un 8, queda eliminado. El descarte se añade a la pila de cartas jugadas.
+- Carta 6: elige a un jugador e intercambia las cartas que quedan en sus manos.
+- Carta 9: elige un objetivo no protegido; un 8 no se ve afectado y Jon Nieve (ID 18) se descarta y roba una carta de reemplazo.
+- Carta 0 deja una gota azul junto al objetivo seleccionado.
+- Las notificaciones compartidas y de fin de ronda no se cierran automáticamente; cada jugador puede cerrarlas con la X.
+- Las cartas jugadas se pueden pulsar para ver el resultado. La carta revelada por una carta de valor 2 solo se muestra al jugador que la miró.
 
-
-MEJORAS DE INTERFAZ (versión actualizada)
-- Pantalla inicial renovada con accesos a Reglas y Cómo se juega.
-- Tras robar, las cartas se pueden seleccionar para leer su descripción antes de confirmar con "Jugar esta carta".
-- Aviso compartido de carta jugada, con cierre manual y desaparición automática a los 2 segundos.
-- Al terminar el mazo, se compara el valor de las cartas que quedan en mano, se informa del ganador de ronda y se muestran las puntuaciones. La partida finaliza al alcanzar el objetivo.
-- Los jugadores marcados en el estado compartido como protegidos aparecen en verde.
-
-LIMITACIONES IMPORTANTES
-- Las reglas de efectos individuales no están implementadas de forma completa en este prototipo. Las descripciones son orientativas y algunos textos de las cartas originales son ambiguos.
-- Las animaciones de ataque con elección de número y las comparaciones específicas solo podrán mostrarse cuando esos efectos estén implementados y produzcan eventos de juego. Esta versión anuncia la carta jugada y muestra el resultado de ronda, pero no simula todavía todos los efectos especiales.
-- No se ha podido probar una partida real con varios navegadores conectados a Firebase; se ha comprobado la sintaxis JavaScript.
-
-
-CORRECCIÓN DE ERROR AL ROBAR/JUGAR (2026-10-21)
-- Se normalizan los campos `manos`, `mazo`, `jugadas`, `historial`, `puntos` y `protegidos` antes de ejecutar acciones.
-- Si el jugador activo no tiene una mano válida en una sala antigua, se recupera una carta inicial del mazo antes de robar.
-- Se añade versión a las referencias CSS/JS para evitar que el navegador reutilice una copia en caché de `app.js`.
-- El error anterior al leer `.push` era compatible con intentar añadir una carta a una mano no inicializada; la corrección cubre esa ruta y también normaliza el registro de cartas jugadas.
+Importante
+La aplicación se ha validado mediante comprobación de sintaxis JavaScript, no mediante una partida real con varios navegadores conectados a Firebase. Las reglas exactas de algunas cartas deben contrastarse con el texto oficial de las ilustraciones. La estructura actual guarda estado de partida en Realtime Database y no constituye una protección fuerte contra jugadores maliciosos: no publiques la aplicación sin revisar las reglas de seguridad de Firebase y la gestión de información privada.
