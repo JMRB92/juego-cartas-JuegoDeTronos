@@ -29,3 +29,10 @@ Cambios principales
 
 Importante
 La aplicación se ha validado mediante comprobación de sintaxis JavaScript, no mediante una partida real con varios navegadores conectados a Firebase. Las reglas exactas de algunas cartas deben contrastarse con el texto oficial de las ilustraciones. La estructura actual guarda estado de partida en Realtime Database y no constituye una protección fuerte contra jugadores maliciosos: no publiques la aplicación sin revisar las reglas de seguridad de Firebase y la gestión de información privada.
+
+VERSIÓN v1.20
+- Se muestra el número de versión en la esquina inferior derecha.
+- El nombre de los jugadores eliminados aparece tachado durante el resto de la ronda.
+- Si solo queda un jugador vivo, se declara ganador de la ronda y recibe un punto.
+- Al comenzar una nueva ronda, se limpian las marcas de eliminación.
+- Al alcanzar el objetivo de puntos, la partida queda finalizada y se deshabilitan las acciones de turno.

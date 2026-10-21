@@ -149,6 +149,7 @@
     if (!Array.isArray(game.mazo)) game.mazo = [];
     if (!game.puntos || typeof game.puntos !== "object") game.puntos = {};
     if (!game.protegidos || typeof game.protegidos !== "object") game.protegidos = {};
+    if (!game.eliminados || typeof game.eliminados !== "object") game.eliminados = {};
     return game;
   }
   function renderHistory(game) {
@@ -165,7 +166,7 @@
     const zone=$('zona-jugadores');zone.replaceChildren();
     playersOf().forEach(p=>{
       const tile=document.createElement('div');tile.className='player-tile'+(p.uid===game.turnoUid?' active':'')+((game.protegidos||{})[p.uid]?' protected':'');
-      const head=document.createElement('div');head.className='player-head';const nameWrap=document.createElement('div');nameWrap.className='player-name-wrap';const n=document.createElement('strong');n.textContent=p.nombre||'Jugador';nameWrap.appendChild(n);if((game.protegidos||{})[p.uid]){const prot=document.createElement('span');prot.className='protection-label';prot.textContent='PROTEGIDO';nameWrap.appendChild(prot);}if((game.apuestasTheon||{})[p.uid]){const drop=document.createElement('span');drop.className='teardrop';drop.textContent='💧';drop.title='Si este jugador gana la ronda, el jugador que jugó la carta 0 obtiene un punto adicional.';nameWrap.appendChild(drop);}head.appendChild(nameWrap);const badge=document.createElement('span');badge.className='pill';badge.textContent=p.uid===game.turnoUid?'EN TURNO':'EN MESA';head.appendChild(badge);tile.appendChild(head);
+      const head=document.createElement('div');head.className='player-head';const nameWrap=document.createElement('div');nameWrap.className='player-name-wrap';const n=document.createElement('strong');n.textContent=p.nombre||'Jugador';const dead=(game.manos?.[p.uid]||[]).length===0;if(dead){n.classList.add('player-dead-name');n.title='Eliminado durante esta ronda';}nameWrap.appendChild(n);if((game.protegidos||{})[p.uid]){const prot=document.createElement('span');prot.className='protection-label';prot.textContent='PROTEGIDO';nameWrap.appendChild(prot);}if((game.apuestasTheon||{})[p.uid]){const drop=document.createElement('span');drop.className='teardrop';drop.textContent='💧';drop.title='Si este jugador gana la ronda, el jugador que jugó la carta 0 obtiene un punto adicional.';nameWrap.appendChild(drop);}head.appendChild(nameWrap);const badge=document.createElement('span');badge.className='pill';badge.textContent=p.uid===game.turnoUid?'EN TURNO':'EN MESA';head.appendChild(badge);tile.appendChild(head);
       const score=document.createElement('span');score.className='player-score';score.textContent=`Puntuación: ${(game.puntos||{})[p.uid]||0} / ${room.puntosObjetivo||5}`;tile.appendChild(score);
       const stack=document.createElement('div');stack.className='player-played';const title=document.createElement('span');title.className='played-title';title.textContent='Cartas jugadas';stack.appendChild(title);
       const cards=(game.jugadas||[]).filter(x=>x.uid===p.uid);
@@ -180,7 +181,8 @@
     const myTurn=game.turnoUid===user?.uid;
     $('btn-robar').disabled=!myTurn||!!game.cartaRobada||!!game.cartaJugada;
     $('btn-pasar').disabled=!myTurn||!game.cartaJugada;
-    $('mensaje-turno').textContent=myTurn?(game.cartaRobada?'Elige una carta para leer su efecto antes de jugarla.':'Es tu turno. Roba una carta y después elige cuál jugar.'):'Esperando el turno de otro jugador.';
+    $('mensaje-turno').textContent=game.estado==='finalizada'?(game.eventoVisual?.texto||'La partida ha terminado.'):(myTurn?(game.cartaRobada?'Elige una carta para leer su efecto antes de jugarla.':'Es tu turno. Roba una carta y después elige cuál jugar.'):'Esperando el turno de otro jugador.');
+    if(game.estado==='finalizada'){ $('btn-robar').disabled=true; $('btn-pasar').disabled=true; }
   }
   let lastVisualEvent=null, visualTimer=null;
   function showSharedEvent(game) {
@@ -260,7 +262,7 @@
       const hands={}; const scores={};
       players.forEach(p=>{hands[p.uid]=[deck.pop()];scores[p.uid]=0;});
       const first=players[Math.floor(Math.random()*players.length)];
-      const game={ronda:1,mazo:deck,manos:hands,puntos:scores,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],historial:[],estado:"jugando"};
+      const game={ronda:1,mazo:deck,manos:hands,puntos:scores,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],historial:[],eliminados:{},estado:"jugando"};
       addHistoryEntry(game,`La partida ha comenzado. Empieza ${(data.jugadores[first.uid]||{}).nombre||"el primer jugador"}.`);
       await db.ref(`salas/${currentCode}`).update({estado:"jugando",juego:game});
     } catch(e){fail("No se pudo iniciar la partida",e);}
@@ -417,6 +419,8 @@
       if(g.protegidos?.[next.uid]) delete g.protegidos[next.uid];
       // Cada jugador mantiene una carta en la mano. Las cartas jugadas quedan visibles en la mesa.
       if((g.manos[user.uid]||[]).length>1) g.manos[user.uid]=[g.manos[user.uid][g.manos[user.uid].length-1]];
+      const livingNow=players.filter(p=>(g.manos?.[p.uid]||[]).length>0);
+      if(livingNow.length===1) g.forcedWinnerUid=livingNow[0].uid;
       if((g.mazo||[]).length===0 || g.forcedWinnerUid) {
         const alive=players.filter(p=>(g.manos[p.uid]||[]).length>0);
         let high=-1, winners=[];
@@ -433,13 +437,13 @@
             g.ronda=(g.ronda||1)+1;
             const newDeck=makeDeck().sort(()=>Math.random()-.5), newHands={};
             players.forEach(p=>{newHands[p.uid]=[newDeck.pop()];});
-            g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
+            g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
           }
         } else {
           addHistoryEntry(g,'La ronda termina en empate; no se asigna punto.','round');
           g.eventoVisual={id:Date.now()+Math.random(),tipo:'ronda',texto:'La ronda termina en empate. Nadie suma puntos.',puntuaciones:{...(g.puntos||{})}};
           g.ronda=(g.ronda||1)+1;const newDeck=makeDeck().sort(()=>Math.random()-.5),newHands={};players.forEach(p=>newHands[p.uid]=[newDeck.pop()]);
-          g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
+          g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
         }
       }
       await db.ref(`salas/${currentCode}/juego`).set(g);
