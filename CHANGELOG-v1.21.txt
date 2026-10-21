@@ -1,0 +1,13 @@
+JUEGO DE CARTAS JDT — CAMBIOS v1.21
+
+- La mano se coloca antes que la lista de jugadores.
+- Turno automático tras la resolución del efecto de la carta.
+- Selección de objetivos mediante desplegables y adivinación de valores mediante desplegable (0, 2–9).
+- Carta 5: el objetivo roba una carta de reemplazo después de descartar cualquier carta que no sea el otro 5; descartar un 8 lo elimina.
+- Carta 8: descartarla voluntariamente también elimina al jugador de la ronda.
+- Catálogo interactivo de las 27 cartas, con ampliación y navegación anterior/siguiente.
+- Apartado «Cómo se juega» ampliado.
+- Pantalla final con ranking y ganador destacado.
+- Temporizador opcional de dos minutos por turno, con pausa global y reanudación.
+
+Validación: node --check app.js. No se ha realizado una partida real con varios clientes Firebase.

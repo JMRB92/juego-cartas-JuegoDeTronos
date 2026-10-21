@@ -36,3 +36,17 @@ VERSIÓN v1.20
 - Si solo queda un jugador vivo, se declara ganador de la ronda y recibe un punto.
 - Al comenzar una nueva ronda, se limpian las marcas de eliminación.
 - Al alcanzar el objetivo de puntos, la partida queda finalizada y se deshabilitan las acciones de turno.
+
+
+VERSIÓN v1.21
+- La mano del jugador aparece antes que el panel de jugadores.
+- El turno avanza automáticamente tras resolver la carta; el botón manual queda desactivado.
+- Los objetivos y las adivinaciones se seleccionan mediante desplegables, con valores 0 y 2–9 para los unos.
+- Se corrige el efecto de las cartas 5: si el objetivo descarta una carta distinta del otro 5, roba una de reemplazo; descartar un 8 elimina.
+- Descartar voluntariamente el 8 elimina al jugador de la ronda.
+- El catálogo de reglas muestra las 27 cartas y permite ampliarlas y navegar entre cartas.
+- Se amplía la explicación de cómo se juega.
+- Al finalizar la partida se muestra la clasificación y se destaca al ganador.
+- Se añade el temporizador opcional de 120 segundos por turno, con pausa y reanudación compartidas en Firebase.
+
+Validación: comprobación de sintaxis JavaScript con node --check. No se ha probado una partida real con varios navegadores conectados a Firebase; el temporizador y la sincronización deben probarse en la publicación real.

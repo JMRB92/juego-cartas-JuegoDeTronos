@@ -94,9 +94,9 @@
       "21":"Elige un jugador y mira su carta en secreto.","22":"Elige hasta dos jugadores y mira sus cartas. Con dos jugadores en la partida solo puedes mirar la del otro jugador.","23":"Elige un jugador y mira su carta en secreto.",
       "31":"Compara tu carta con la de otro jugador. La de menor valor queda eliminada.","32":"Compara tu carta con la de otro jugador. La de menor valor queda eliminada.","33":"Elige si debe morir la carta mayor o la menor y luego elige un jugador para comparar. Si te atacan con un 3 o un 7 mientras conservas esta carta, puedes redirigir el ataque a otro jugador.",
       "41":"Quedas protegido hasta que vuelva a comenzar tu siguiente turno. No puedes ser elegido como objetivo.","42":"Quedas protegido hasta que vuelva a comenzar tu siguiente turno. No puedes ser elegido como objetivo. Al final de ronda sumas +1 al valor de tu carta.","43":"Quedas protegido hasta que vuelva a comenzar tu siguiente turno. No puedes ser elegido como objetivo.",
-      "51":"Elige un jugador. Si tiene el otro 5, ganas la ronda. Si no, descarta su carta; si era un 8, queda eliminado.","52":"Elige un jugador. Si tiene el otro 5, ganas la ronda. Si no, descarta su carta; si era un 8, queda eliminado.",
+      "51":"Elige un jugador. Si tiene el otro 5, ganas la ronda. Si no, descarta su carta: si era un 8, queda eliminado; si era cualquier otra carta, roba una carta de reemplazo.","52":"Elige un jugador. Si tiene el otro 5, ganas la ronda. Si no, descarta su carta: si era un 8, queda eliminado; si era cualquier otra carta, roba una carta de reemplazo.",
       "61":"Reúne las cartas que conservan todos los jugadores vivos y repártelas de nuevo al azar entre ellos.","62":"Elige a otro jugador e intercambia tu carta con la suya.",
-      "71":"Compara tu carta con la de otro jugador. La de mayor valor queda eliminada.","72":"Si conservas un 5 o un 6, debes descartar esta carta. También puedes descartarla voluntariamente.","81":"Si descartas esta carta por el efecto de otra carta, quedas eliminado.","91":"Elige a un jugador no protegido. Si tiene un 8, no ocurre nada. Si tiene a Jon Snow, descarta esa carta y roba otra; en otro caso queda eliminado."
+      "71":"Compara tu carta con la de otro jugador. La de mayor valor queda eliminada.","72":"Si conservas un 5 o un 6, debes descartar esta carta. También puedes descartarla voluntariamente.","81":"Si descartas esta carta por el efecto de otra carta o voluntariamente, quedas eliminado de la ronda.","91":"Elige a un jugador no protegido. Si tiene un 8, no ocurre nada. Si tiene a Jon Snow, descarta esa carta y roba otra; en otro caso queda eliminado."
     }; return effects[String(id)] || "Consulta las reglas de esta carta.";
   }
   function cardImagePath(card) {
@@ -131,6 +131,33 @@
     const effect=document.createElement('p');effect.textContent=card?.effect||cardEffect(card?.id);content.appendChild(effect);
     modal.classList.remove('hidden');
   }
+  function allCards() {
+    return Object.keys(CARD_META).map(id=>({id,value:Number(id[0]),name:cardName(id),characteristic:CARD_META[id][1],character:CARD_META[id][2],effect:cardEffect(id),image:`assets/cartas/${id}.png`}));
+  }
+  let catalogIndex=0;
+  function showCatalogCard(index) {
+    const cards=allCards();catalogIndex=(index+cards.length)%cards.length;
+    const card=cards[catalogIndex],modal=$('modal-carta'),content=$('contenido-modal-carta');if(!modal||!content)return;
+    content.replaceChildren();
+    const image=document.createElement('img');image.className='modal-card-image';image.src=card.image;image.alt=card.name;image.onerror=()=>image.remove();content.appendChild(image);
+    const title=document.createElement('h2');title.textContent=`${card.value} · ${card.characteristic} · ${card.character}`;content.appendChild(title);
+    const effect=document.createElement('p');effect.textContent=card.effect;content.appendChild(effect);
+    const nav=document.createElement('div');nav.className='button-row';
+    const prev=document.createElement('button');prev.className='secondary';prev.textContent='← Carta anterior';prev.onclick=()=>showCatalogCard(catalogIndex-1);
+    const next=document.createElement('button');next.className='secondary';next.textContent='Carta siguiente →';next.onclick=()=>showCatalogCard(catalogIndex+1);
+    const close=document.createElement('button');close.className='primary';close.textContent='Cerrar';close.onclick=()=>modal.classList.add('hidden');
+    nav.append(prev,next,close);content.appendChild(nav);modal.classList.remove('hidden');
+  }
+  function renderCatalog() {
+    const root=$('catalogo-cartas');if(!root)return;root.replaceChildren();
+    allCards().forEach((card,index)=>{
+      const b=document.createElement('button');b.type='button';b.className='catalog-card';
+      const img=document.createElement('img');img.src=card.image;img.alt=card.name;img.onerror=()=>img.remove();b.appendChild(img);
+      const title=document.createElement('strong');title.textContent=`${card.value} · ${card.character}`;b.appendChild(title);
+      const sub=document.createElement('span');sub.textContent=card.characteristic;b.appendChild(sub);
+      b.onclick=()=>showCatalogCard(index);root.appendChild(b);
+    });
+  }
   function addHistoryEntry(game, text, kind='') {
     if (!game || typeof game !== "object") throw new Error("El estado de la partida no es válido.");
     if (!Array.isArray(game.historial)) game.historial = [];
@@ -156,10 +183,56 @@
     const targets=[$('historial-partida'),$('historial-completo')].filter(Boolean);
     targets.forEach(list=>{list.replaceChildren();(game.historial||[]).slice().reverse().forEach(entry=>{const li=document.createElement('li');if(entry.tipo)li.classList.add('event-'+entry.tipo);const time=document.createElement('time');time.textContent=new Date(entry.timestamp||Date.now()).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'});li.appendChild(time);li.appendChild(document.createTextNode(entry.texto||'Acción de la partida'));list.appendChild(li);});});
   }
+  let timerInterval=null, timeoutInProgress=false;
+  async function handleTimeout() {
+    if(timeoutInProgress||!room||!user)return;timeoutInProgress=true;
+    try{
+      const snap=await db.ref(`salas/${currentCode}`).once('value'),data=snap.val(),g=data?.juego;
+      if(!g||g.estado==='finalizada'||g.turnoUid!==user.uid||!g.temporizadorActivo||g.partidaPausada)return;
+      const elapsed=Date.now()-Number(g.turnoStartedAt||Date.now()),remaining=Number(g.tiempoRestanteMs??120000)-elapsed;
+      if(remaining>0)return;
+      g.manos[user.uid]=[];g.cartaJugada=true;g.cartaRobada=true;
+      addHistoryEntry(g,`${data.jugadores?.[user.uid]?.nombre||'El jugador'} agotó los 2 minutos y queda eliminado de la ronda.`,'effect');
+      g.eventoVisual={id:Date.now()+Math.random(),tipo:'ataque',texto:`${data.jugadores?.[user.uid]?.nombre||'El jugador'} agotó el tiempo y queda eliminado de la ronda.`};
+      await db.ref(`salas/${currentCode}/juego`).set(g);await endTurn();
+    }catch(e){console.warn('No se pudo aplicar el límite de tiempo',e);}
+    finally{timeoutInProgress=false;}
+  }
+  function updateTimerUI(game) {
+    const label=$('temporizador-turno'),pause=$('btn-pausar');if(!label||!pause)return;
+    const active=!!game.temporizadorActivo&&game.estado!=='finalizada';
+    label.classList.toggle('hidden',!active);pause.classList.toggle('hidden',!active);
+    pause.textContent=game.partidaPausada?'Reanudar partida':'Pausar partida';
+    if(!active){label.textContent='';return;}
+    if(game.partidaPausada){label.textContent=`PARTIDA PAUSADA · Quedaban ${formatClock(Number(game.tiempoRestanteMs||120000))}`;return;}
+    const elapsed=Date.now()-Number(game.turnoStartedAt||Date.now()),left=Math.max(0,Number(game.tiempoRestanteMs??120000)-elapsed);
+    label.textContent=`Tiempo restante: ${formatClock(left)}`;
+    if(left<=0&&game.turnoUid===user?.uid)handleTimeout();
+  }
+  function formatClock(ms){const total=Math.max(0,Math.ceil(ms/1000));return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;}
+  async function togglePause() {
+    try{
+      const snap=await db.ref(`salas/${currentCode}`).once('value'),data=snap.val(),g=data?.juego;
+      if(!g||!g.temporizadorActivo||g.estado==='finalizada')return;
+      if(!g.partidaPausada){const elapsed=Date.now()-Number(g.turnoStartedAt||Date.now());g.tiempoRestanteMs=Math.max(0,Number(g.tiempoRestanteMs??120000)-elapsed);g.partidaPausada=true;}
+      else {g.partidaPausada=false;g.turnoStartedAt=Date.now();}
+      addHistoryEntry(g,g.partidaPausada?'La partida se ha pausado.':'La partida se ha reanudado.');
+      await db.ref(`salas/${currentCode}/juego`).set(g);
+    }catch(e){fail('No se pudo pausar/reanudar la partida',e);}
+  }
+  function renderFinalRanking(game) {
+    const modal=$('pantalla-final');if(!modal||game.estado!=='finalizada')return;
+    const ranking=Object.values(room.jugadores||{}).map(p=>({name:p.nombre||'Jugador',points:Number(game.puntos?.[p.uid]||0),uid:p.uid})).sort((a,b)=>b.points-a.points);
+    const max=ranking[0]?.points||0, winners=ranking.filter(p=>p.points===max);
+    $('texto-ganador').textContent=winners.length===1?`Ganador: ${winners[0].name} · ${winners[0].points} puntos`:`Empate en cabeza: ${winners.map(p=>p.name).join(', ')} · ${max} puntos`;
+    const list=$('ranking-final');list.replaceChildren();ranking.forEach((p,i)=>{const li=document.createElement('li');li.textContent=`${i+1}. ${p.name} — ${p.points} puntos`;if(p.points===max)li.classList.add('rank-winner');list.appendChild(li);});
+    modal.classList.remove('hidden');
+  }
   function renderGame() {
     if(!room) return;
     showScreen('pantalla-juego');
     const game=room.juego||{};
+    updateTimerUI(game);renderFinalRanking(game);
     $('numero-ronda').textContent=game.ronda||1;
     $('cartas-restantes').textContent=(game.mazo||[]).length;
     $('objetivo-puntos').textContent=room.puntosObjetivo||5;
@@ -178,11 +251,11 @@
     const played=$('cartas-jugadas');played.replaceChildren();(game.jugadas||[]).slice().reverse().slice(0,8).forEach(x=>{const item=document.createElement('span');item.className='pill';item.textContent=`${x.nombre}: ${(x.carta||{}).name||'Carta'} (${(x.carta||{}).value??'—'})`;played.appendChild(item);});
     renderHistory(game);
     showSharedEvent(game);
-    const myTurn=game.turnoUid===user?.uid;
+    const myTurn=game.turnoUid===user?.uid&&!game.partidaPausada;
     $('btn-robar').disabled=!myTurn||!!game.cartaRobada||!!game.cartaJugada;
     $('btn-pasar').disabled=!myTurn||!game.cartaJugada;
     $('mensaje-turno').textContent=game.estado==='finalizada'?(game.eventoVisual?.texto||'La partida ha terminado.'):(myTurn?(game.cartaRobada?'Elige una carta para leer su efecto antes de jugarla.':'Es tu turno. Roba una carta y después elige cuál jugar.'):'Esperando el turno de otro jugador.');
-    if(game.estado==='finalizada'){ $('btn-robar').disabled=true; $('btn-pasar').disabled=true; }
+    if(game.estado==='finalizada'){ $('btn-robar').disabled=true; $('btn-pasar').disabled=true; } if(game.partidaPausada){$('btn-robar').disabled=true;$('btn-pasar').disabled=true;$('mensaje-turno').textContent='Partida pausada por un jugador.';}
   }
   let lastVisualEvent=null, visualTimer=null;
   function showSharedEvent(game) {
@@ -213,7 +286,7 @@
         const candidate=randomCode(), ref=db.ref(`salas/${candidate}`);
         const snap=await ref.once("value");
         if(snap.exists()) continue;
-        const data={codigo:candidate,creadorUid:user.uid,maxJugadores:max,puntosObjetivo:target,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
+        const data={codigo:candidate,creadorUid:user.uid,maxJugadores:max,puntosObjetivo:target,temporizadorActivo:$("temporizador-activo")?.value==="si",estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
         // El código es aleatorio; set crea el nodo. En colisión extremadamente improbable se comprueba antes.
         await ref.set(data); code=candidate;
       }
@@ -262,7 +335,7 @@
       const hands={}; const scores={};
       players.forEach(p=>{hands[p.uid]=[deck.pop()];scores[p.uid]=0;});
       const first=players[Math.floor(Math.random()*players.length)];
-      const game={ronda:1,mazo:deck,manos:hands,puntos:scores,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],historial:[],eliminados:{},estado:"jugando"};
+      const game={ronda:1,mazo:deck,manos:hands,puntos:scores,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],historial:[],eliminados:{},temporizadorActivo:!!data.temporizadorActivo,tiempoRestanteMs:120000,turnoStartedAt:Date.now(),partidaPausada:false,estado:"jugando"};
       addHistoryEntry(game,`La partida ha comenzado. Empieza ${(data.jugadores[first.uid]||{}).nombre||"el primer jugador"}.`);
       await db.ref(`salas/${currentCode}`).update({estado:"jugando",juego:game});
     } catch(e){fail("No se pudo iniciar la partida",e);}
@@ -270,7 +343,7 @@
   async function drawCard() {
     try {
       const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
-      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno."); if(g.partidaPausada)throw new Error("La partida está pausada.");
       normalizeGameForAction(g,user.uid);
       if(g.cartaRobada||g.cartaJugada) throw new Error("Ya has robado una carta en este turno.");
       if(!g.mazo.length) throw new Error("No quedan cartas en el mazo.");
@@ -287,15 +360,29 @@
   function eligibleTargets(g, data, actorUid) {
     return Object.values(data.jugadores||{}).filter(p=>p.uid!==actorUid && (g.manos?.[p.uid]||[]).length>0 && !(g.protegidos||{})[p.uid]);
   }
-  function chooseTarget(g, data, actorUid, promptText='Elige el jugador objetivo') {
+  function chooseFromDropdown(title, options, placeholder='Selecciona una opción') {
+    return new Promise(resolve=>{
+      const modal=$('modal-carta'), content=$('contenido-modal-carta');
+      if(!modal||!content){resolve(null);return;}
+      content.replaceChildren();
+      const h=document.createElement('h2');h.textContent=title;content.appendChild(h);
+      const select=document.createElement('select');select.className='choice-select';
+      const empty=document.createElement('option');empty.value='';empty.textContent=placeholder;select.appendChild(empty);
+      options.forEach(o=>{const opt=document.createElement('option');opt.value=String(o.value);opt.textContent=o.label;select.appendChild(opt);});
+      content.appendChild(select);
+      const row=document.createElement('div');row.className='button-row';
+      const ok=document.createElement('button');ok.className='primary';ok.textContent='Confirmar';
+      const cancel=document.createElement('button');cancel.className='secondary';cancel.textContent='Cancelar';
+      const finish=value=>{modal.classList.add('hidden');content.replaceChildren();resolve(value);};
+      ok.onclick=()=>finish(select.value===''?null:select.value);cancel.onclick=()=>finish(null);
+      row.append(ok,cancel);content.appendChild(row);modal.classList.remove('hidden');
+    });
+  }
+  async function chooseTarget(g, data, actorUid, promptText='Elige el jugador objetivo') {
     const targets=eligibleTargets(g,data,actorUid);
     if(!targets.length) return null;
-    const options=targets.map((p,i)=>`${i+1}. ${p.nombre||'Jugador'}${(g.manos?.[p.uid]||[]).length?'':''}`).join('\n');
-    const answer=window.prompt(`${promptText}\n${options}\nEscribe el número del jugador:`,'1');
-    if(answer===null) return null;
-    const idx=Number(answer)-1;
-    if(!Number.isInteger(idx)||idx<0||idx>=targets.length) throw new Error('Selección de jugador no válida.');
-    return targets[idx];
+    const picked=await chooseFromDropdown(promptText,targets.map(p=>({value:p.uid,label:p.nombre||'Jugador'})),'Elige un jugador');
+    return picked?targets.find(p=>p.uid===picked)||null:null;
   }
   function announce(g, tipo, texto, extra={}) {
     g.eventoVisual={id:Date.now()+Math.random(),tipo,texto,...extra};
@@ -334,26 +421,26 @@
     const id=String(card.id), value=Number(card.value??id[0]);
     const addPlayed=(uid,c,result)=>{if(!Array.isArray(g.jugadas))g.jugadas=[];g.jugadas.push({uid,nombre:data.jugadores?.[uid]?.nombre||'Jugador',carta:c,resultado:result,timestamp:Date.now()});};
     if(id==='01'){
-      const target=chooseTarget(g,data,actorUid,'Theon Greyjoy: elige a un jugador al que llorar.');
+      const target=await chooseTarget(g,data,actorUid,'Theon Greyjoy: elige a un jugador al que llorar.');
       if(target){g.apuestasTheon=g.apuestasTheon||{};g.apuestasTheon[target.uid]=actorUid;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} llora por ${target.nombre}. Si gana la ronda, ${actorName} obtiene un punto adicional.`;announce(g,'carta',entry.resultado,{carta:card});}
       return;
     }
     if(id==='02'){entry.resultado='Arya Stark queda descartada. Su habilidad defensiva se aplica si un efecto intenta eliminar a quien la conserva.';return;}
     if(value===1){
-      const target=chooseTarget(g,data,actorUid,'Guerrero: elige un jugador para adivinar su carta.');if(!target){entry.resultado='No se eligió objetivo.';return;}
-      const raw=window.prompt('¿Qué valor tiene su carta? Introduce un número del 0 al 9 (no puedes elegir 1).','2');if(raw===null){entry.resultado='Adivinación cancelada.';return;}
-      const guess=Number(raw);if(!Number.isInteger(guess)||guess<0||guess>9||guess===1)throw new Error('Elige un valor entero entre 0 y 9, excepto 1.');
+      const target=await chooseTarget(g,data,actorUid,'Guerrero: elige un jugador para adivinar su carta.');if(!target){entry.resultado='No se eligió objetivo.';return;}
+      const raw=await chooseFromDropdown('Adivina el valor de la carta de '+(target.nombre||'tu objetivo'),[0,2,3,4,5,6,7,8,9].map(n=>({value:n,label:String(n)})),'Elige un valor (no se puede elegir 1)');if(raw===null){entry.resultado='Adivinación cancelada.';return;}
+      const guess=Number(raw);
       const targetCard=(g.manos?.[target.uid]||[])[0];if(!targetCard)throw new Error('El jugador seleccionado ya no tiene una carta en la mano.');const targetValue=Number(targetCard.value??String(targetCard.id)[0]);const hit=targetValue===guess;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.numeroElegido=guess;
       if(hit){const res=eliminateOrSave(g,data,target.uid,`ataque de ${actorName}`,entry);entry.resultado=`${actorName} eligió ${target.nombre} y adivinó ${guess}: acierto. ${res.message}`;}else entry.resultado=`${actorName} eligió ${target.nombre} y adivinó ${guess}: fallo.`;
       addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta:card,numeroElegido:guess,acierto:hit});return;
     }
     if(value===2){
-      const count=id==='22'?2:1;const seen=[];for(let i=0;i<count;i++){const target=chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1}${count===2?' de hasta dos':''} cuya carta quieres ver en secreto.`);if(!target)break;const targetCard=(g.manos?.[target.uid]||[])[0];if(targetCard){seen.push({target,targetCard});entry.cartaVista=targetCard;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(i===0)showPrivatePeek(targetCard,target.nombre||'Jugador');}}
+      const count=id==='22'?2:1;const seen=[];for(let i=0;i<count;i++){const target=await chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1}${count===2?' de hasta dos':''} cuya carta quieres ver en secreto.`);if(!target)break;const targetCard=(g.manos?.[target.uid]||[])[0];if(targetCard){seen.push({target,targetCard});entry.cartaVista=targetCard;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(i===0)showPrivatePeek(targetCard,target.nombre||'Jugador');}}
       entry.cartasVistas=seen.map(x=>({uid:x.target.uid,nombre:x.target.nombre,carta:x.targetCard}));entry.resultado=seen.length?`${actorName} miró en secreto la carta de ${seen.map(x=>x.target.nombre).join(' y ')}.`:'No se eligió objetivo.';addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',`${entry.resultado} Solo ${actorName} puede verlas.`,{carta:card});return;
     }
     if(value===3||id==='71'){
-      let dieRule=id==='71'?'higher':'lower';if(id==='33'){const answer=window.prompt('Tyrion Lannister: escribe MAYOR para eliminar la carta de mayor valor o MENOR para eliminar la de menor valor.','MENOR');if(answer===null){entry.resultado='Comparación cancelada.';return;}const a=answer.trim().toLowerCase();if(!['mayor','menor'].includes(a))throw new Error('Escribe MAYOR o MENOR.');dieRule=a==='mayor'?'higher':'lower';}
-      const target=chooseTarget(g,data,actorUid,`Estratega: elige a un jugador para comparar (muere la carta ${dieRule==='higher'?'mayor':'menor'}).`);if(!target){entry.resultado='No se eligió objetivo.';return;}
+      let dieRule=id==='71'?'higher':'lower';if(id==='33'){const answer=await chooseFromDropdown('Tyrion Lannister: ¿qué carta debe morir?',[{value:'mayor',label:'La carta de mayor valor'},{value:'menor',label:'La carta de menor valor'}],'Elige una opción');if(answer===null){entry.resultado='Comparación cancelada.';return;}dieRule=answer==='mayor'?'higher':'lower';}
+      const target=await chooseTarget(g,data,actorUid,`Estratega: elige a un jugador para comparar (muere la carta ${dieRule==='higher'?'mayor':'menor'}).`);if(!target){entry.resultado='No se eligió objetivo.';return;}
       const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(!mine||!theirs){entry.resultado='No se pudo comparar: falta una carta.';return;}
       const mv=Number(mine.value)+(id==='42'?1:0),tv=Number(theirs.value);let loser=null;if(mv!==tv)loser=(dieRule==='higher'?(mv>tv?actorUid:target.uid):(mv<tv?actorUid:target.uid));
       entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.cartaComparada=theirs;
@@ -362,20 +449,20 @@
     }
     if(value===4){g.protegidos=g.protegidos||{};g.protegidos[actorUid]=true;if(id==='42'){g.bonusFinalUid=actorUid;}entry.resultado=`${actorName} queda PROTEGIDO hasta que vuelva a comenzar su turno.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;}
     if(value===5){
-      const target=chooseTarget(g,data,actorUid,'Gemelo: elige un jugador.');if(!target){entry.resultado='No se eligió objetivo.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(!held){entry.resultado=`${target.nombre} ya está eliminado.`;return;}
+      const target=await chooseTarget(g,data,actorUid,'Gemelo: elige un jugador.');if(!target){entry.resultado='No se eligió objetivo.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(!held){entry.resultado=`${target.nombre} ya está eliminado.`;return;}
       if(Number(held.value)===5){g.forcedWinnerUid=actorUid;entry.resultado=`${target.nombre} tenía el otro 5. ${actorName} gana la ronda.`;announce(g,'ronda',entry.resultado,{carta:card});}
-      else {addPlayed(target.uid,held,`${target.nombre} descarta ${held.name} por el efecto de ${actorName}.`);g.manos[target.uid]=[];entry.cartaDescartada=held;if(Number(held.value)===8)entry.resultado=`${target.nombre} descarta a Daenerys (8) y queda eliminado.`;else entry.resultado=`${target.nombre} descarta ${held.name}.`;announce(g,'carta',entry.resultado,{carta:held});}addHistoryEntry(g,entry.resultado,'effect');return;
+      else {addPlayed(target.uid,held,`${target.nombre} descarta ${held.name} por el efecto de ${actorName}.`);entry.cartaDescartada=held;if(Number(held.value)===8){g.manos[target.uid]=[];entry.resultado=`${target.nombre} descarta a Daenerys (8) y queda eliminado.`;}else{const replacement=(g.mazo||[]).pop();g.manos[target.uid]=replacement?[replacement]:[];entry.resultado=replacement?`${target.nombre} descarta ${held.name} y roba una carta de reemplazo.`:`${target.nombre} descarta ${held.name}, pero no quedan cartas para robar; queda eliminado.`;}announce(g,'carta',entry.resultado,{carta:held});}addHistoryEntry(g,entry.resultado,'effect');return;
     }
     if(id==='61'){
       const alive=Object.keys(data.jugadores||{}).filter(uid=>(g.manos?.[uid]||[]).length>0);const pool=alive.map(uid=>g.manos[uid][0]).sort(()=>Math.random()-.5);alive.forEach((uid,i)=>g.manos[uid]=[pool[i]]);entry.resultado=`${actorName} jugó al Rey de la Noche: las cartas de los jugadores vivos se repartieron de nuevo al azar.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;
     }
     if(id==='62'){
-      const target=chooseTarget(g,data,actorUid,'Joffrey: elige a un jugador para intercambiar las cartas.');if(!target){entry.resultado='No se eligió objetivo.';return;}const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(mine&&theirs){g.manos[actorUid]=[theirs];g.manos[target.uid]=[mine];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;announce(g,'carta',entry.resultado,{carta:card});}return;
+      const target=await chooseTarget(g,data,actorUid,'Joffrey: elige a un jugador para intercambiar las cartas.');if(!target){entry.resultado='No se eligió objetivo.';return;}const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(mine&&theirs){g.manos[actorUid]=[theirs];g.manos[target.uid]=[mine];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;announce(g,'carta',entry.resultado,{carta:card});}return;
     }
     if(id==='72') {const hand=g.manos?.[actorUid]||[];const other=hand.find(c=>c.uid!==card.uid);if([5,6].includes(Number(other?.value))){entry.resultado=`Sansa se descarta obligatoriamente porque conservas un ${other.value}.`;}else{const ans=window.confirm('¿Quieres descartar Sansa voluntariamente? Pulsa Aceptar para descartarla o Cancelar para conservarla.');if(!ans){g.manos[actorUid]=[...hand,card];entry.resultado='Sansa se conserva en la mano.';return;}}return;}
-    if(id==='81'){entry.resultado='Daenerys no tiene efecto al jugarse normalmente. Si se descarta por un efecto, su portador queda eliminado.';return;}
+    if(id==='81'){g.manos[actorUid]=[];entry.resultado=`${actorName} descarta voluntariamente a Daenerys (8) y queda eliminado de la ronda.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;}
     if(id==='91'){
-      const target=chooseTarget(g,data,actorUid,'Drogon: elige un jugador no protegido para atacar.');if(!target){entry.resultado='No se eligió objetivo.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;
+      const target=await chooseTarget(g,data,actorUid,'Drogon: elige un jugador no protegido para atacar.');if(!target){entry.resultado='No se eligió objetivo.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;
       if(Number(held?.value)===8)entry.resultado=`${target.nombre} tiene a Daenerys (8): Drogon no puede eliminarlo.`;
       else if(String(held?.id)==='18'){const res=eliminateOrSave(g,data,target.uid,'ataque de Drogon',entry);entry.resultado=`${target.nombre} tenía a Jon Snow. ${res.message}`;}
       else {const res=eliminateOrSave(g,data,target.uid,`ataque de Drogon de ${actorName}`,entry);entry.resultado=res.message;}
@@ -385,7 +472,7 @@
   async function playCard(index) {
     try {
       const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
-      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno."); if(g.partidaPausada)throw new Error("La partida está pausada.");
       normalizeGameForAction(g,user.uid);
       if(!g.cartaRobada) throw new Error("Primero debes robar una carta.");
       if(g.cartaJugada) throw new Error("Ya has jugado una carta en este turno.");
@@ -401,12 +488,14 @@
       // Aplicar el efecto real de la carta antes de guardar el estado compartido.
       await resolveCardEffect(g,data,user.uid,card,entry);
       await db.ref(`salas/${currentCode}/juego`).set(g);selectedCard=null;
+      // El efecto se guarda primero; después se avanza automáticamente al siguiente turno.
+      await endTurn();
     } catch(e){fail("No se pudo jugar la carta",e);}
   }
   async function endTurn() {
     try {
       const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
-      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno."); if(g.partidaPausada)throw new Error("La partida está pausada.");
       if(!g.cartaJugada) throw new Error("Debes robar y jugar una carta antes de terminar el turno.");
       const players=Object.values(data.jugadores||{}), index=players.findIndex(p=>p.uid===user.uid);
       const aliveNow=players.filter(p=>(g.manos?.[p.uid]||[]).length>0);
@@ -414,7 +503,7 @@
       const next=candidates[0] || aliveNow[0] || players[(index+1+players.length)%Math.max(players.length,1)];
       if(!next) throw new Error("No hay jugadores disponibles para continuar la partida.");
       addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"El jugador"} termina su turno. Ahora juega ${(next||{}).nombre||"el siguiente jugador"}.`);
-      g.turnoUid=next.uid; g.cartaRobada=false; g.cartaJugada=false;
+      g.turnoUid=next.uid; g.cartaRobada=false; g.cartaJugada=false; if(g.temporizadorActivo){g.tiempoRestanteMs=120000;g.turnoStartedAt=Date.now();}
       // La protección dura hasta que vuelve a empezar el turno de ese jugador.
       if(g.protegidos?.[next.uid]) delete g.protegidos[next.uid];
       // Cada jugador mantiene una carta en la mano. Las cartas jugadas quedan visibles en la mesa.
@@ -437,13 +526,13 @@
             g.ronda=(g.ronda||1)+1;
             const newDeck=makeDeck().sort(()=>Math.random()-.5), newHands={};
             players.forEach(p=>{newHands[p.uid]=[newDeck.pop()];});
-            g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
+            g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;if(g.temporizadorActivo){g.tiempoRestanteMs=120000;g.turnoStartedAt=Date.now();g.partidaPausada=false;}
           }
         } else {
           addHistoryEntry(g,'La ronda termina en empate; no se asigna punto.','round');
           g.eventoVisual={id:Date.now()+Math.random(),tipo:'ronda',texto:'La ronda termina en empate. Nadie suma puntos.',puntuaciones:{...(g.puntos||{})}};
           g.ronda=(g.ronda||1)+1;const newDeck=makeDeck().sort(()=>Math.random()-.5),newHands={};players.forEach(p=>newHands[p.uid]=[newDeck.pop()]);
-          g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;
+          g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;if(g.temporizadorActivo){g.tiempoRestanteMs=120000;g.turnoStartedAt=Date.now();g.partidaPausada=false;}
         }
       }
       await db.ref(`salas/${currentCode}/juego`).set(g);
@@ -465,7 +554,7 @@
     $("modal-carta")?.addEventListener("click",e=>{if(e.target.id==="modal-carta")e.currentTarget.classList.add("hidden");});
     $("btn-historial")?.addEventListener("click",()=>$("modal-historial")?.classList.remove("hidden"));
     $("cerrar-modal-historial")?.addEventListener("click",()=>$("modal-historial")?.classList.add("hidden"));
-    $("btn-reglas")?.addEventListener("click",()=>$("modal-reglas")?.classList.remove("hidden"));
+    $("btn-reglas")?.addEventListener("click",()=>{renderCatalog();$("modal-reglas")?.classList.remove("hidden");});
     $("btn-como-jugar")?.addEventListener("click",()=>$("modal-como-jugar")?.classList.remove("hidden"));
     $("cerrar-reglas")?.addEventListener("click",()=>$("modal-reglas")?.classList.add("hidden"));
     $("cerrar-como-jugar")?.addEventListener("click",()=>$("modal-como-jugar")?.classList.add("hidden"));
@@ -474,7 +563,7 @@
     $("btn-volver-inicio-crear").addEventListener("click",()=>showScreen("pantalla-inicio"));
     $("btn-volver-inicio-unirse").addEventListener("click",()=>showScreen("pantalla-inicio"));
     $("numero-jugadores").addEventListener("change",()=>{$("puntos-objetivo").value=Number($("numero-jugadores").value)<=4?5:3;});
-    $("btn-generar-partida").addEventListener("click",createRoom);
+    $("btn-generar-partida").addEventListener("click",createRoom); $("btn-pausar")?.addEventListener("click",togglePause); $("cerrar-final")?.addEventListener("click",()=>$("pantalla-final")?.classList.add("hidden"));
     $("btn-unirse").addEventListener("click",joinRoom);
     $("codigo-partida").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);});
     $("btn-copiar-codigo").addEventListener("click",async()=>{const code=$("codigo-sala").textContent;try{await navigator.clipboard.writeText(code);say("Código copiado: "+code);}catch(_){window.prompt("Copia el código:",code);}});
@@ -492,7 +581,8 @@
       auth.onAuthStateChanged(u=>{user=u||null;if(u)setStatus("Firebase conectado","ok");else setStatus("Iniciando sesión…");});
       auth.signInAnonymously().catch(e=>{setStatus("Error de autenticación","bad");fail("No se pudo iniciar sesión anónima",e);});
       wire();
-      console.log("Aplicación cargada. Versión consolidada JDT.");
+      if(!timerInterval)timerInterval=window.setInterval(()=>{if(room?.juego)updateTimerUI(room.juego);},1000);
+      console.log("Aplicación cargada. Versión JDT v1.21.");
     } catch(e) {setStatus("Error de configuración","bad");fail("No se pudo iniciar la aplicación",e);}
   }
   document.addEventListener("DOMContentLoaded",boot);

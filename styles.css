@@ -40,3 +40,23 @@
 .hidden-card-placeholder{width:150px;min-height:210px;display:flex;align-items:center;justify-content:center;margin:12px auto;border:2px dashed #76664a;border-radius:10px;background:repeating-linear-gradient(45deg,#191613,#191613 10px,#211d17 10px,#211d17 20px);color:#b8a47b;font-size:12px;font-weight:800;letter-spacing:2px}
 
 .player-dead-name{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#e06a62;color:#b7aaa0!important;opacity:.8}.player-tile:has(.player-dead-name){border-color:#643a37;background:#1c1514}footer{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left}.app-version{color:#b6a27b;font-weight:700;white-space:nowrap;letter-spacing:.4px}@media(max-width:600px){footer{align-items:flex-start;flex-direction:column}}
+
+
+/* JDT v1.21: catálogo completo, ranking, temporizador y selección */
+.rules-catalog{max-width:980px!important}
+.catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin-top:20px}
+.catalog-card{display:flex;flex-direction:column;align-items:center;gap:7px;background:#171512;border:1px solid #4a4030;color:var(--text);padding:10px;border-radius:9px;text-align:center}
+.catalog-card img{width:100%;height:150px;object-fit:contain;border-radius:5px}
+.catalog-card strong{font-size:12px;color:var(--gold2)}
+.catalog-card span{font-size:11px;color:var(--muted)}
+.modal-card-image{display:block;width:min(320px,80vw);max-height:50vh;object-fit:contain;margin:0 auto 16px;border-radius:8px}
+.choice-select{margin:15px 0}
+.turn-timer{font-weight:800;color:var(--gold2);font-size:14px;margin:0}
+.turn-timer:has(+ *){letter-spacing:.3px}
+.final-ranking{max-width:560px!important}
+.final-ranking h2{font-family:Cinzel,serif}
+.final-ranking li{padding:12px 14px;margin:8px 0;background:#201d19;border:1px solid var(--line);border-radius:8px}
+.final-ranking li.rank-winner{background:linear-gradient(110deg,#4a391b,#272015);border:2px solid var(--gold);font-weight:900;color:#ffe5a5}
+#pantalla-final{z-index:10000}
+#btn-pasar{opacity:.7}
+@media(max-width:600px){.catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-card img{height:130px}.game-head{align-items:flex-start}.game-head .button-row{margin-top:0;flex-direction:column}}

@@ -7,3 +7,6 @@ Correcciones de esta revisión
 5. Incrementada la versión de los recursos en index.html para evitar que el navegador siga usando app.js/styles.css antiguos desde la caché.
 
 Validación realizada: `node --check app.js` pasa correctamente. No se ha podido ejecutar una partida multijugador real contra Firebase desde este entorno.
+
+
+Revisión v1.21: corregido el reemplazo tras descarte por cartas 5; el turno se avanza automáticamente después de guardar el efecto; adivinación y objetivos usan desplegables; se añadió catálogo de reglas, clasificación final y temporizador opcional. Validación de sintaxis pendiente de ejecución final.
