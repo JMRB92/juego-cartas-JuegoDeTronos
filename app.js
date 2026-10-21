@@ -139,8 +139,24 @@
     modal.classList.remove('hidden');
   }
   function addHistoryEntry(game, text, kind='') {
-    game.historial=game.historial||[];game.historial.push({texto:text,timestamp:Date.now(),tipo:kind});
+    if (!game || typeof game !== "object") throw new Error("El estado de la partida no es válido.");
+    if (!Array.isArray(game.historial)) game.historial = [];
+    game.historial.push({texto:text,timestamp:Date.now(),tipo:kind});
     if(game.historial.length>300)game.historial=game.historial.slice(-300);
+  }
+
+  // Normaliza los arrays del estado compartido. Algunas salas creadas con versiones
+  // anteriores pueden no contener todavía todos los campos del motor actual.
+  function normalizeGameForAction(game, uid) {
+    if (!game || typeof game !== "object") throw new Error("No se ha encontrado el estado de la partida.");
+    if (!game.manos || typeof game.manos !== "object") game.manos = {};
+    if (!Array.isArray(game.manos[uid])) game.manos[uid] = [];
+    if (!Array.isArray(game.jugadas)) game.jugadas = [];
+    if (!Array.isArray(game.historial)) game.historial = [];
+    if (!Array.isArray(game.mazo)) game.mazo = [];
+    if (!game.puntos || typeof game.puntos !== "object") game.puntos = {};
+    if (!game.protegidos || typeof game.protegidos !== "object") game.protegidos = {};
+    return game;
   }
   function renderHistory(game) {
     const targets=[$('historial-partida'),$('historial-completo')].filter(Boolean);
@@ -259,9 +275,19 @@
     try {
       const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
       if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      normalizeGameForAction(g,user.uid);
       if(g.cartaRobada||g.cartaJugada) throw new Error("Ya has robado una carta en este turno.");
-      if(!g.mazo?.length) throw new Error("No quedan cartas en el mazo.");
-      const card=g.mazo.pop(); g.manos[user.uid].push(card); g.cartaRobada=true;
+      if(!g.mazo.length) throw new Error("No quedan cartas en el mazo.");
+      // Reparación de compatibilidad: si una sala antigua no tiene la carta inicial
+      // de este jugador, se repone antes de robar para que la mano llegue a dos cartas.
+      if(g.manos[user.uid].length===0) {
+        if(!g.mazo.length) throw new Error("No quedan cartas para recuperar tu mano. Inicia una ronda nueva.");
+        g.manos[user.uid].push(g.mazo.pop());
+        addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"Un jugador"} recupera la carta inicial que faltaba en su mano.`);
+      }
+      const card=g.mazo.pop();
+      if(!card) throw new Error("No se ha podido robar una carta del mazo.");
+      g.manos[user.uid].push(card); g.cartaRobada=true;
       addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"Un jugador"} roba una carta.`);
       await db.ref(`salas/${currentCode}/juego`).set(g);
     } catch(e){fail("No se pudo robar carta",e);}
@@ -270,12 +296,14 @@
     try {
       const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
       if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno.");
+      normalizeGameForAction(g,user.uid);
       if(!g.cartaRobada) throw new Error("Primero debes robar una carta.");
       if(g.cartaJugada) throw new Error("Ya has jugado una carta en este turno.");
-      const hand=g.manos[user.uid]||[];
+      const hand=g.manos[user.uid];
       if(index<0||index>=hand.length) throw new Error("La carta seleccionada ya no está en tu mano.");
       const card=hand.splice(index,1)[0];
-      g.jugadas=g.jugadas||[]; const playerName=(data.jugadores[user.uid]||{}).nombre||"Jugador";
+      if(!Array.isArray(g.jugadas)) g.jugadas=[];
+      const playerName=(data.jugadores?.[user.uid]||{}).nombre||"Jugador";
       g.jugadas.push({uid:user.uid,nombre:playerName,carta:card});
       g.cartaJugada=true; g.manos[user.uid]=hand; g.ultimaCartaJugada=card;
       g.eventoVisual={id:Date.now()+Math.random(),tipo:'carta',uid:user.uid,nombre:playerName,carta:card, texto:`${playerName} juega ${card.name||`la carta ${card.id||""}`} (valor ${card.value??"—"}).`};

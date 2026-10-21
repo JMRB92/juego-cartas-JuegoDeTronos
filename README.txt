@@ -32,3 +32,10 @@ LIMITACIONES IMPORTANTES
 - Las reglas de efectos individuales no están implementadas de forma completa en este prototipo. Las descripciones son orientativas y algunos textos de las cartas originales son ambiguos.
 - Las animaciones de ataque con elección de número y las comparaciones específicas solo podrán mostrarse cuando esos efectos estén implementados y produzcan eventos de juego. Esta versión anuncia la carta jugada y muestra el resultado de ronda, pero no simula todavía todos los efectos especiales.
 - No se ha podido probar una partida real con varios navegadores conectados a Firebase; se ha comprobado la sintaxis JavaScript.
+
+
+CORRECCIÓN DE ERROR AL ROBAR/JUGAR (2026-10-21)
+- Se normalizan los campos `manos`, `mazo`, `jugadas`, `historial`, `puntos` y `protegidos` antes de ejecutar acciones.
+- Si el jugador activo no tiene una mano válida en una sala antigua, se recupera una carta inicial del mazo antes de robar.
+- Se añade versión a las referencias CSS/JS para evitar que el navegador reutilice una copia en caché de `app.js`.
+- El error anterior al leer `.push` era compatible con intentar añadir una carta a una mano no inicializada; la corrección cubre esa ruta y también normaliza el registro de cartas jugadas.
