@@ -229,7 +229,7 @@
       if(!existing[user.uid]) {
         const playerRef=ref.child(`jugadores/${user.uid}`);
         console.info("[UNIRSE] Escribiendo jugador en:",playerRef.toString());
-        await playerRef.set({uid:user.uid,nombre,unidoEn:firebase.database.ServerValue.TIMESTAMP});
+        await playerRef.set({uid:user.uid,nombre:name,unidoEn:firebase.database.ServerValue.TIMESTAMP});
         console.info("[UNIRSE] Escritura completada.");
       }
       listen(code);
