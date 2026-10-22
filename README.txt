@@ -30,7 +30,7 @@ Cambios principales
 Importante
 La aplicación se ha validado mediante comprobación de sintaxis JavaScript, no mediante una partida real con varios navegadores conectados a Firebase. Las reglas exactas de algunas cartas deben contrastarse con el texto oficial de las ilustraciones. La estructura actual guarda estado de partida en Realtime Database y no constituye una protección fuerte contra jugadores maliciosos: no publiques la aplicación sin revisar las reglas de seguridad de Firebase y la gestión de información privada.
 
-VERSIÓN v1.20
+VERSIÓN v1.22
 - Se muestra el número de versión en la esquina inferior derecha.
 - El nombre de los jugadores eliminados aparece tachado durante el resto de la ronda.
 - Si solo queda un jugador vivo, se declara ganador de la ronda y recibe un punto.
@@ -38,7 +38,7 @@ VERSIÓN v1.20
 - Al alcanzar el objetivo de puntos, la partida queda finalizada y se deshabilitan las acciones de turno.
 
 
-VERSIÓN v1.21
+VERSIÓN v1.22
 - La mano del jugador aparece antes que el panel de jugadores.
 - El turno avanza automáticamente tras resolver la carta; el botón manual queda desactivado.
 - Los objetivos y las adivinaciones se seleccionan mediante desplegables, con valores 0 y 2–9 para los unos.
@@ -50,3 +50,6 @@ VERSIÓN v1.21
 - Se añade el temporizador opcional de 120 segundos por turno, con pausa y reanudación compartidas en Firebase.
 
 Validación: comprobación de sintaxis JavaScript con node --check. No se ha probado una partida real con varios navegadores conectados a Firebase; el temporizador y la sincronización deben probarse en la publicación real.
+
+
+Cambios v1.22: ficha de carta accesible desde el catálogo de la pantalla inicial; avisos compartidos con la resolución detallada de cada carta y controles de cierre restaurados.

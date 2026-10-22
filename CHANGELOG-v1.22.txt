@@ -1,0 +1,11 @@
+JUEGO DE CARTAS JDT — v1.22
+
+Correcciones y mejoras:
+- El detalle de las cartas del catálogo ahora se abre también desde la pantalla inicial. El modal se ha movido fuera de la pantalla de juego oculta.
+- Al consultar una carta del catálogo, cerrar la ficha devuelve al catálogo de reglas; la navegación anterior/siguiente conserva ese comportamiento.
+- La resolución de cada carta genera un aviso compartido para todos los jugadores.
+- El aviso identifica al jugador que actuó, muestra la carta jugada, el objetivo cuando existe, las cartas implicadas en comparaciones, las cartas descartadas por el efecto, el valor adivinado y el resultado textual.
+- Se ha restaurado el cierre explícito mediante la X y un botón «Cerrar». Los avisos no se cierran automáticamente.
+- Las cartas vistas mediante efectos privados no se incluyen en el aviso público.
+
+Verificación: comprobación sintáctica de app.js con node --check. No se ha realizado una partida multijugador real conectada a Firebase.

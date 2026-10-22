@@ -9,6 +9,7 @@
   const screens = ["pantalla-inicio","pantalla-crear","pantalla-unirse","pantalla-lobby","pantalla-juego"];
   let auth, db, user = null, currentCode = null, roomRef = null, roomCallback = null;
   let room = null, selectedCard = null, busy = false;
+  let catalogDetailReturn = false;
 
   function showScreen(id) {
     screens.forEach(s => { const el=$(s); if(el) el.classList.toggle("hidden",s!==id); });
@@ -138,6 +139,8 @@
   function showCatalogCard(index) {
     const cards=allCards();catalogIndex=(index+cards.length)%cards.length;
     const card=cards[catalogIndex],modal=$('modal-carta'),content=$('contenido-modal-carta');if(!modal||!content)return;
+    catalogDetailReturn = catalogDetailReturn || !$('modal-reglas')?.classList.contains('hidden');
+    $('modal-reglas')?.classList.add('hidden');
     content.replaceChildren();
     const image=document.createElement('img');image.className='modal-card-image';image.src=card.image;image.alt=card.name;image.onerror=()=>image.remove();content.appendChild(image);
     const title=document.createElement('h2');title.textContent=`${card.value} · ${card.characteristic} · ${card.character}`;content.appendChild(title);
@@ -145,7 +148,7 @@
     const nav=document.createElement('div');nav.className='button-row';
     const prev=document.createElement('button');prev.className='secondary';prev.textContent='← Carta anterior';prev.onclick=()=>showCatalogCard(catalogIndex-1);
     const next=document.createElement('button');next.className='secondary';next.textContent='Carta siguiente →';next.onclick=()=>showCatalogCard(catalogIndex+1);
-    const close=document.createElement('button');close.className='primary';close.textContent='Cerrar';close.onclick=()=>modal.classList.add('hidden');
+    const close=document.createElement('button');close.className='primary';close.textContent='Cerrar';close.onclick=()=>{modal.classList.add('hidden');if(catalogDetailReturn){$('modal-reglas')?.classList.remove('hidden');catalogDetailReturn=false;}};
     nav.append(prev,next,close);content.appendChild(nav);modal.classList.remove('hidden');
   }
   function renderCatalog() {
@@ -264,14 +267,18 @@
     const root=$('evento-visual');if(!root)return;
     root.replaceChildren();root.className='event-overlay';
     const close=document.createElement('button');close.className='event-close';close.textContent='×';close.setAttribute('aria-label','Cerrar aviso');close.onclick=()=>root.classList.add('hidden');root.appendChild(close);
-    const title=document.createElement('h2');title.textContent=ev.tipo==='ronda'?'Fin de la ronda':ev.tipo==='comparacion'?'Comparación de cartas':ev.tipo==='ataque'?'Ataque': 'Carta jugada';root.appendChild(title);
-    if(ev.carta)root.appendChild(makeCardVisual(ev.carta,true));
-    if(ev.carta2)root.appendChild(makeCardVisual(ev.carta2,true));
-    if(ev.numeroElegido!==undefined){const guess=document.createElement('h3');guess.textContent=`Número elegido: ${ev.numeroElegido}${ev.acierto?' · ¡ACIERTO!':' · FALLO'}`;root.appendChild(guess);}
-    const text=document.createElement('p');text.textContent=ev.texto||'';root.appendChild(text);
-    if(ev.puntuaciones){const list=document.createElement('ul');Object.entries(ev.puntuaciones).forEach(([uid,pts])=>{const li=document.createElement('li');li.textContent=`${(room?.jugadores?.[uid]?.nombre)||'Jugador'}: ${pts} puntos`;list.appendChild(li);});root.appendChild(list);}
+    const title=document.createElement('h2');title.textContent=ev.tipo==='ronda'?'Fin de la ronda':ev.tipo==='comparacion'?'Resolución de comparación':ev.tipo==='ataque'?'Resolución del ataque':'Resolución de la carta';root.appendChild(title);
+    if(ev.jugadorNombre){const actor=document.createElement('p');actor.className='event-actor';actor.textContent=`Jugador que actuó: ${ev.jugadorNombre}`;root.appendChild(actor);}
+    if(ev.carta){const label=document.createElement('h3');label.textContent='Carta jugada';root.appendChild(label);root.appendChild(makeCardVisual(ev.carta,true));}
+    if(ev.objetivoNombre){const target=document.createElement('p');target.textContent=`Objetivo: ${ev.objetivoNombre}`;root.appendChild(target);}
+    if(ev.carta2){const label=document.createElement('h3');label.textContent=ev.tipo==='comparacion'?'Cartas comparadas':'Segunda carta implicada';root.appendChild(label);root.appendChild(makeCardVisual(ev.carta2,true));}
+    if(ev.cartaDescartada){const label=document.createElement('h3');label.textContent='Carta descartada por el efecto';root.appendChild(label);root.appendChild(makeCardVisual(ev.cartaDescartada,true));}
+    if(ev.numeroElegido!==undefined){const guess=document.createElement('p');guess.textContent=`Valor adivinado: ${ev.numeroElegido} · ${ev.acierto?'Acierto':'Fallo'}`;root.appendChild(guess);}
+    const text=document.createElement('p');text.className='event-resolution';text.textContent=ev.texto||'La carta se ha jugado.';root.appendChild(text);
+    if(ev.puntuaciones){const label=document.createElement('h3');label.textContent='Puntuación actual';root.appendChild(label);const list=document.createElement('ul');Object.entries(ev.puntuaciones).forEach(([uid,pts])=>{const li=document.createElement('li');li.textContent=`${(room?.jugadores?.[uid]?.nombre)||'Jugador'}: ${pts} puntos`;list.appendChild(li);});root.appendChild(list);}
+    const done=document.createElement('button');done.className='primary full';done.textContent='Cerrar';done.onclick=()=>root.classList.add('hidden');root.appendChild(done);
     root.classList.remove('hidden');root.classList.add('event-pop');
-    clearTimeout(visualTimer); // Los avisos compartidos permanecen hasta que alguien los cierre.
+    clearTimeout(visualTimer);
   }
   async function createRoom() {
     if(busy)return; busy=true; say(""); $("btn-generar-partida").disabled=true;
@@ -487,6 +494,8 @@
       addHistoryEntry(g,`${playerName} juega ${card.name||`la carta ${card.id||""}`} (valor ${card.value??"—"}).`,"effect");
       // Aplicar el efecto real de la carta antes de guardar el estado compartido.
       await resolveCardEffect(g,data,user.uid,card,entry);
+      // Aviso público completo. Las cartas vistas en secreto nunca se incluyen aquí.
+      g.eventoVisual={id:Date.now()+Math.random(),tipo:entry.numeroElegido!==undefined?'ataque':(entry.cartaComparada?'comparacion':'carta'),jugadorUid:user.uid,jugadorNombre:playerName,carta:card,objetivoNombre:entry.objetivoNombre||'',carta2:entry.cartaComparada||null,cartaDescartada:entry.cartaDescartada||null,numeroElegido:entry.numeroElegido,acierto:entry.numeroElegido!==undefined?String(entry.resultado||'').toLowerCase().includes('acierto'):undefined,texto:entry.resultado||`${playerName} jugó ${card.name}.`};
       await db.ref(`salas/${currentCode}/juego`).set(g);selectedCard=null;
       // El efecto se guarda primero; después se avanza automáticamente al siguiente turno.
       await endTurn();
@@ -550,8 +559,8 @@
     detach(); currentCode=null; room=null; selectedCard=null; say(""); showScreen("pantalla-inicio");
   }
   function wire() {
-    $("cerrar-modal-carta")?.addEventListener("click",()=>$("modal-carta")?.classList.add("hidden"));
-    $("modal-carta")?.addEventListener("click",e=>{if(e.target.id==="modal-carta")e.currentTarget.classList.add("hidden");});
+    $("cerrar-modal-carta")?.addEventListener("click",()=>{ $("modal-carta")?.classList.add("hidden"); if(catalogDetailReturn){$("modal-reglas")?.classList.remove("hidden");catalogDetailReturn=false;} });
+    $("modal-carta")?.addEventListener("click",e=>{if(e.target.id==="modal-carta"){e.currentTarget.classList.add("hidden");if(catalogDetailReturn){$("modal-reglas")?.classList.remove("hidden");catalogDetailReturn=false;}}});
     $("btn-historial")?.addEventListener("click",()=>$("modal-historial")?.classList.remove("hidden"));
     $("cerrar-modal-historial")?.addEventListener("click",()=>$("modal-historial")?.classList.add("hidden"));
     $("btn-reglas")?.addEventListener("click",()=>{renderCatalog();$("modal-reglas")?.classList.remove("hidden");});
