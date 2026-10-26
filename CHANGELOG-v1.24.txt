@@ -1,0 +1,12 @@
+JUEGO DE CARTAS JDT — v1.24
+
+- Recuperado como base el motor de selección y juego de cartas de v1.21 para evitar cambios innecesarios en la interacción de la mano.
+- El Llorón / Theon (0) puede elegir a cualquier jugador vivo, incluso si está protegido.
+- Todas las cartas jugadas generan una notificación pública con jugador, carta, objetivo cuando corresponda y resolución.
+- La notificación de fin de ronda conserva también los datos de la última carta jugada y su resolución.
+- Las notificaciones incluyen botón de cierre y permanecen hasta que el jugador las cierre.
+- Corregido el descarte cancelado de Sansa para no consumir la carta ni avanzar el turno.
+- El catálogo de reglas abre la ficha de la carta por encima del catálogo y vuelve a este al cerrar, sin interferir con la ventana de cartas de la partida.
+- Las consultas privadas de cartas no se incluyen en la notificación compartida.
+
+Comprobaciones realizadas: sintaxis JavaScript, referencias de HTML y estructura del ZIP. No se ha podido ejecutar una partida real con varios navegadores conectados a Firebase.

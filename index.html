@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#171717">
   <title>Juego de Cartas · Juego de Tronos</title>
-  <link rel="stylesheet" href="styles.css?v=20261021v121">
+  <link rel="stylesheet" href="styles.css?v=20261026v126">
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script defer src="firebase-config.js?v=20261021fix2"></script>
-  <script defer src="app.js?v=20261021v121"></script>
+  <script defer src="app.js?v=20261026v126"></script>
 </head>
 <body>
   <header class="topbar">
@@ -35,7 +35,7 @@
       </div>
       <div class="notice"><strong>Una mesa. Muchas estrategias.</strong><p>Crea una sala privada, comparte el código de seis caracteres y juega con tus amigos. No necesitas crear una cuenta.</p></div>
       <div id="modal-reglas" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Reglas del juego"><div class="info-modal-card rules-catalog"><button id="cerrar-reglas" class="modal-close" aria-label="Cerrar">×</button><p class="eyebrow">GUÍA COMPLETA</p><h2>Reglas de las cartas</h2><p>Pulsa cualquier carta para ampliarla y consultar su efecto. Dentro de la ficha puedes avanzar a la carta anterior o siguiente.</p><div id="catalogo-cartas" class="catalog-grid"></div></div></div>
-      <div id="modal-como-jugar" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Cómo se juega"><div class="info-modal-card"><button id="cerrar-como-jugar" class="modal-close" aria-label="Cerrar">×</button><p class="eyebrow">GUÍA DE PARTIDA</p><h2>Cómo se juega</h2><ol><li><b>Crear sala:</b> el anfitrión elige el número máximo de jugadores y los puntos necesarios para ganar. Comparte el código de seis caracteres.</li><li><b>Preparación:</b> cada jugador recibe una carta. El mazo contiene las 27 cartas del juego.</li><li><b>Tu turno:</b> roba una carta; tendrás dos. Elige una para jugar y conserva la otra. Los efectos se resuelven y el turno pasa automáticamente al siguiente jugador.</li><li><b>Objetivos:</b> cuando un efecto pide elegir a alguien, selecciona su nombre en el desplegable. Los jugadores eliminados o protegidos no aparecerán como objetivo válido.</li><li><b>Eliminación:</b> si un efecto elimina a un jugador, pierde su carta y no participa más en esa ronda. Su nombre queda tachado. Volverá a recibir una carta al empezar la ronda siguiente.</li><li><b>Protección:</b> algunas cartas protegen hasta que comience de nuevo el turno de quien la jugó. Mientras tanto, no se le puede elegir como objetivo.</li><li><b>Final de ronda:</b> si queda un único jugador vivo, gana la ronda. Si se agota el mazo, los jugadores vivos comparan el valor de su carta; gana el valor mayor, aplicando los modificadores especiales. Un empate no da punto.</li><li><b>Puntuación:</b> el ganador de la ronda obtiene un punto. El Bufón puede dar un punto adicional si gana el jugador elegido.</li><li><b>Final de partida:</b> gana quien alcanza primero la puntuación objetivo. Se muestra la clasificación final de todos los participantes.</li></ol><p>Las cartas especiales pueden modificar estas reglas generales; consulta el catálogo para leer cada efecto. Juega con atención: a veces conviene conservar una carta de valor alto y otras veces usar su efecto antes de que sea demasiado tarde.</p></div></div>
+      <div id="modal-como-jugar" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Cómo se juega"><div class="info-modal-card"><button id="cerrar-como-jugar" class="modal-close" aria-label="Cerrar">×</button><p class="eyebrow">GUÍA DE PARTIDA</p><h2>Cómo se juega</h2><ol><li><b>Crear sala:</b> el anfitrión elige el número máximo de jugadores y los puntos necesarios para ganar. Comparte el código de seis caracteres.</li><li><b>Preparación:</b> antes de repartir, se quema una carta boca abajo. Se revela al finalizar la ronda. Cada jugador recibe una carta.</li><li><b>Tu turno:</b> roba una carta; tendrás dos. Elige una para jugar y conserva la otra. Los efectos se resuelven y el turno pasa automáticamente al siguiente jugador.</li><li><b>Objetivos:</b> cuando un efecto pide elegir a alguien, selecciona su nombre en el desplegable. Las cartas que permiten elegir a un protegido, como el Llorón (0), pueden hacerlo.</li><li><b>Eliminación:</b> si un efecto elimina a un jugador, pierde su carta y no participa más en esa ronda. Su nombre queda tachado. Volverá a recibir una carta al empezar la ronda siguiente.</li><li><b>Protección:</b> algunas cartas protegen hasta que comience de nuevo el turno de quien la jugó. Mientras tanto, no se le puede elegir como objetivo.</li><li><b>Final de ronda:</b> si queda un único jugador vivo, gana la ronda. Si se agota el mazo, los jugadores vivos comparan el valor de su carta; gana el valor mayor, aplicando los modificadores especiales. Un empate no da punto.</li><li><b>Puntuación:</b> el ganador de la ronda obtiene un punto. El Bufón puede dar un punto adicional si gana el jugador elegido.</li><li><b>Final de partida:</b> gana quien alcanza primero la puntuación objetivo. Se muestra la clasificación final de todos los participantes.</li></ol><p>Las cartas especiales pueden modificar estas reglas generales; consulta el catálogo para leer cada efecto. Juega con atención: a veces conviene conservar una carta de valor alto y otras veces usar su efecto antes de que sea demasiado tarde.</p></div></div>
     </section>
 
     <section id="pantalla-crear" class="screen hidden">
@@ -68,7 +68,7 @@
 
     <section id="pantalla-lobby" class="screen hidden">
       <div class="lobby-head"><div><p class="eyebrow">SALA DE ESPERA</p><h2>La mesa está preparada</h2></div><button id="btn-salir-sala" class="secondary">Salir</button></div>
-      <div class="code-card"><div><small>CÓDIGO DE INVITACIÓN</small><strong id="codigo-sala">------</strong></div><button id="btn-copiar-codigo" class="secondary">Copiar código</button></div>
+      <div class="code-card"><div><small>CÓDIGO DE INVITACIÓN</small><strong id="codigo-sala">------</strong></div><div class="button-row code-actions"><button id="btn-copiar-codigo" class="secondary">Copiar código</button><button id="btn-copiar-enlace" class="secondary">Copiar enlace de invitación</button></div></div>
       <div class="panel"><div class="section-heading"><h3>Jugadores</h3><span id="estado-lobby" class="pill">0 jugadores</span></div><ul id="lista-jugadores" class="player-list"></ul>
         <p id="estado-partida" class="help">Comparte el código con los demás jugadores. El anfitrión podrá iniciar cuando estén todos listos.</p>
         <button id="btn-iniciar-partida" class="primary full">Iniciar partida</button>
@@ -76,9 +76,10 @@
     </section>
 
     <section id="pantalla-juego" class="screen hidden">
-      <div class="game-head"><div><p class="eyebrow">PARTIDA EN CURSO</p><h2>La corte</h2><p id="temporizador-turno" class="turn-timer hidden">Tiempo restante: 02:00</p></div><div class="button-row"><button id="btn-pausar" class="secondary hidden">Pausar partida</button><button id="btn-salir-juego" class="secondary">Salir</button></div></div>
+      <div class="game-head"><div><p class="eyebrow">PARTIDA EN CURSO</p><h2>La corte</h2><p id="temporizador-turno" class="turn-timer hidden">Tiempo restante: 02:00</p></div><div class="button-row game-header-actions"><button id="btn-reingreso" class="reentry-toggle" type="button" title="Solo el anfitrión puede cambiar esta opción">Reingresos abiertos</button><button id="btn-pausar" class="secondary hidden">Pausar partida</button><button id="btn-salir-juego" class="secondary">Salir</button></div></div>
+      <div id="panel-solicitudes-reingreso" class="panel reentry-requests hidden" aria-live="polite"></div>
       <div class="game-stats"><div><small>RONDA</small><strong id="numero-ronda">1</strong></div><div><small>MAZO</small><strong id="cartas-restantes">0</strong></div><div><small>OBJETIVO</small><strong id="objetivo-puntos">5</strong></div></div>
-      <div class="panel"><h3>Tu mano</h3><p class="help">Roba una carta y juega una carta por turno. Las cartas se muestran por su valor.</p><div id="mi-mano" class="hand"></div><div class="button-row"><button id="btn-robar" class="secondary">Robar carta</button><button id="btn-pasar" class="primary">Terminar turno</button></div><p id="mensaje-turno" class="help"></p></div>
+      <div class="panel"><div class="hand-heading"><h3>Tu mano</h3><strong id="indicador-turno" class="turn-indicator">Esperando turno</strong></div><p class="help">Roba una carta y juega una carta por turno. Las cartas se muestran por su valor.</p><div id="mi-mano" class="hand"></div><div class="button-row"><button id="btn-robar" class="secondary">Robar carta</button><button id="btn-pasar" class="primary">Terminar turno</button></div><p id="mensaje-turno" class="help"></p></div>
       <div class="panel"><h3>Jugadores</h3><div id="zona-jugadores" class="players-grid"></div></div>
       <div class="panel"><div class="section-heading"><h3>Historial de la partida</h3><button id="btn-historial" class="secondary small-button" type="button">Ver historial completo</button></div><div id="cartas-jugadas" class="played-list"></div><ol id="historial-partida" class="event-log"></ol></div>
       <div id="evento-visual" class="event-overlay hidden" role="status" aria-live="polite"></div><div id="pantalla-final" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Clasificación final"><div class="info-modal-card final-ranking"><h2>Clasificación final</h2><p id="texto-ganador"></p><ol id="ranking-final"></ol><button id="cerrar-final" class="primary full">Cerrar clasificación</button></div></div>
@@ -88,6 +89,6 @@
 
     <div id="mensaje-global" class="global-message" role="status" aria-live="polite"></div>
   </main>
-  <footer><span>Prototipo privado · No introduzcas datos personales sensibles.</span><span class="app-version">Juego de Tronos · v1.21</span></footer>
+  <footer><span>Prototipo privado · No introduzcas datos personales sensibles.</span><span class="app-version">Juego de Tronos · v1.26</span></footer>
 </body>
 </html>

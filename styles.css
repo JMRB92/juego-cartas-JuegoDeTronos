@@ -60,3 +60,24 @@
 #pantalla-final{z-index:10000}
 #btn-pasar{opacity:.7}
 @media(max-width:600px){.catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-card img{height:130px}.game-head{align-items:flex-start}.game-head .button-row{margin-top:0;flex-direction:column}}
+
+/* v1.24: información de resolución de jugadas */
+.event-actor{font-weight:800;font-size:1.05rem}
+.event-resolution{white-space:pre-line;line-height:1.5}
+.event-overlay .played-card{max-width:230px;margin:8px auto}
+.event-overlay .primary.full{margin-top:12px}
+
+/* Consulta privada de cartas: siempre por encima del aviso público y sin cierre automático. */
+.private-peek-overlay{position:fixed;z-index:2000;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:#050505ed;backdrop-filter:blur(5px)}
+.private-peek-overlay.hidden{display:none!important}
+.private-peek-panel{position:relative;width:min(100%,760px);max-height:92vh;overflow:auto;background:#1c1915;border:1px solid #b99a5d;border-radius:14px;padding:28px;box-shadow:0 20px 80px #000c;text-align:center}
+.private-peek-panel h2{font-family:Cinzel,serif;color:#e3c783;margin:0 45px 10px}
+.private-peek-panel>p{color:#d7cbb8;line-height:1.5}
+.private-peek-cards{display:flex;justify-content:center;align-items:flex-start;flex-wrap:wrap;gap:22px;margin:18px 0}
+.private-peek-item{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:150px}
+.private-peek-item h3{margin:0;color:#e3c783;font-size:15px}
+.private-peek-card{cursor:default;opacity:1!important}
+@media(max-width:600px){.private-peek-panel{padding:24px 14px}.private-peek-cards{gap:12px}.private-peek-item{width:100%}}
+
+/* v1.26: reingreso de jugadores, indicador de turno y enlace de invitación */
+.hand-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.hand-heading h3{margin:0}.turn-indicator{display:inline-flex;padding:7px 11px;border-radius:20px;background:#2e281d;border:1px solid #8b7146;color:#f0d59b;font-size:12px;letter-spacing:.4px}.code-actions{margin:0;justify-content:flex-end}.reentry-toggle{font-size:11px;padding:8px 10px;border-radius:6px;white-space:nowrap}.reentry-toggle.open{background:#17633b;color:#e3ffec;border-color:#39a968}.reentry-toggle.closed{background:#7b2525;color:#fff0f0;border-color:#c64b4b}.reentry-requests h3{margin-bottom:12px}.reentry-request-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line)}.reentry-request-row p{flex:1;min-width:180px;margin:0}.reentry-request-row button{padding:9px 12px;font-size:12px}.reentry-request-row .danger{border-color:#8a3838;color:#ffc4c4}.game-header-actions{margin-top:0;justify-content:flex-end;align-items:center}.reentry-requests.hidden{display:none!important}@media(max-width:700px){.code-actions{width:100%;justify-content:flex-start}.game-header-actions{flex-direction:column;align-items:stretch}.reentry-request-row{align-items:stretch}.reentry-request-row button{flex:1}}

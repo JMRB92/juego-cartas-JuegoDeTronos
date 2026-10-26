@@ -1,0 +1,8 @@
+JUEGO DE CARTAS JDT — v1.25
+
+Corrección de la consulta privada de las cartas de valor 2.
+- La carta del objetivo se muestra en una ventana privada independiente, por encima del aviso público de la jugada.
+- La ventana ya no se cierra automáticamente a los 3 segundos; el jugador la cierra manualmente.
+- Brandon Stark muestra las cartas de los dos objetivos seleccionados en la misma ventana.
+- La información privada se mantiene solo en el navegador del jugador que ejecutó el efecto y no se incorpora al evento compartido de Firebase.
+- Actualizada la versión visible y las referencias de caché.

@@ -1,0 +1,19 @@
+Juego de Cartas de Juego de Tronos — v1.26
+
+Cambios incluidos:
+- Se aparta una carta antes del reparto de cada ronda y se revela al finalizar la ronda.
+- Se permite solicitar el reingreso a una partida en curso con el mismo nombre y código; el anfitrión puede aceptar o rechazar la solicitud.
+- Botón superior para abrir o cerrar los reingresos; solo el anfitrión puede modificarlo.
+- Limpieza de salas con más de 48 horas cuando se abre/usa la aplicación, mediante consulta ordenada por creadaEn.
+- Indicador de turno junto a la mano del jugador.
+- Enlace copiable de invitación que precarga el código de sala.
+- Las cartas comparadas se muestran visualmente solo a los dos jugadores implicados; no se incluyen en el historial textual. Esta ocultación es visual, no una garantía de privacidad técnica en Firebase.
+- La notificación de jugada muestra la carta y la resolución; al finalizar la ronda también muestra la carta quemada.
+- Se intercambian los nombres de las cartas 3: la carta 31 aparece como Varys y la 32 como Meñique, según la corrección solicitada.
+- El jugador desconectado no se elimina automáticamente por salir; puede solicitar volver a entrar y esperar la decisión del anfitrión.
+- La limpieza de salas se ejecuta desde el cliente al abrir la aplicación; no garantiza el borrado si nadie vuelve a abrirla.
+
+Decisiones aprobadas:
+- Privacidad: ocultación solo visual.
+- Caducidad: limpieza desde el cliente.
+- Desconexión: esperar el reingreso sin eliminación automática.
