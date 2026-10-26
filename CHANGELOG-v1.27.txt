@@ -1,0 +1,15 @@
+JUEGO DE CARTAS JUEGO DE TRONOS — v1.27
+
+Correcciones
+- Corregido un fallo que podía impedir guardar la jugada en Firebase cuando el evento contenía campos opcionales con valor undefined. Ahora se eliminan recursivamente las propiedades undefined antes de guardar el estado de la partida.
+- Aplicado el saneado a todas las escrituras del estado del juego, para evitar que una resolución de carta bloquee el turno.
+- Recolocada la carta quemada: aparece inmediatamente encima de «Puntuación actual» en el aviso de fin de ronda.
+- Actualizada la versión visible y la caché de los archivos para que GitHub Pages cargue los cambios.
+
+Comprobaciones realizadas
+- Sintaxis JavaScript con node --check.
+- Verificación estática de referencias a elementos HTML.
+- Verificación de que las escrituras del juego usan el saneado y de que el orden del aviso es resolución, carta quemada y puntuación.
+- Integridad del ZIP.
+
+Limitación: no se ha podido probar una partida real entre varios navegadores conectados al Firebase del usuario.

@@ -73,3 +73,11 @@ NOTAS v1.26
 - Las cartas 3 intercambian las etiquetas de personaje solicitadas: carta 31 Varys, carta 32 Meñique.
 - Las cartas comparadas se ocultan a nivel de interfaz para quienes no participan en la comparación; los datos compartidos de Firebase no son técnicamente privados.
 - Las salas caducadas se limpian cuando se abre la aplicación; para limpieza garantizada sin usuarios conectados haría falta un servicio programado.
+
+
+VERSIÓN v1.27
+- Corrección de escrituras Firebase: se eliminan campos undefined antes de guardar el estado de juego, evitando que falle la resolución de una carta.
+- La carta quemada aparece justo encima de «Puntuación actual» en el aviso de fin de ronda.
+- Versión de interfaz y caché actualizadas a v1.27.
+
+La corrección se ha validado estáticamente. No se ha probado una partida real con varios navegadores conectados al Firebase publicado.

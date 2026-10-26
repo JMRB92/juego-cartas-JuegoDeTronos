@@ -21,6 +21,20 @@
     console.error(`[${op}]`, err?.code || "", err?.message || err, err);
     say(`${op}: ${err?.code ? err.code+" — " : ""}${err?.message || String(err)}`);
   }
+  // Firebase Realtime Database rechaza propiedades con valor undefined.
+  // Algunas resoluciones (por ejemplo, una carta Guerrero sin adivinación) podían
+  // construir eventoVisual con campos opcionales undefined y bloquear toda la jugada.
+  function cleanFirebaseValue(value) {
+    if (Array.isArray(value)) return value.map(item => item === undefined ? null : cleanFirebaseValue(item));
+    if (value && typeof value === "object") {
+      const clean = {};
+      Object.entries(value).forEach(([key, item]) => {
+        if (item !== undefined && typeof item !== "function") clean[key] = cleanFirebaseValue(item);
+      });
+      return clean;
+    }
+    return value;
+  }
   function randomCode() {
     const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join("");
@@ -224,7 +238,7 @@
       g.manos[user.uid]=[];g.cartaJugada=true;g.cartaRobada=true;
       addHistoryEntry(g,`${data.jugadores?.[user.uid]?.nombre||'El jugador'} agotó los 2 minutos y queda eliminado de la ronda.`,'effect');
       g.eventoVisual={id:Date.now()+Math.random(),tipo:'ataque',texto:`${data.jugadores?.[user.uid]?.nombre||'El jugador'} agotó el tiempo y queda eliminado de la ronda.`};
-      await db.ref(`salas/${currentCode}/juego`).set(g);await endTurn();
+      await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));await endTurn();
     }catch(e){console.warn('No se pudo aplicar el límite de tiempo',e);}
     finally{timeoutInProgress=false;}
   }
@@ -247,7 +261,7 @@
       if(!g.partidaPausada){const elapsed=Date.now()-Number(g.turnoStartedAt||Date.now());g.tiempoRestanteMs=Math.max(0,Number(g.tiempoRestanteMs??120000)-elapsed);g.partidaPausada=true;}
       else {g.partidaPausada=false;g.turnoStartedAt=Date.now();}
       addHistoryEntry(g,g.partidaPausada?'La partida se ha pausado.':'La partida se ha reanudado.');
-      await db.ref(`salas/${currentCode}/juego`).set(g);
+      await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));
     }catch(e){fail('No se pudo pausar/reanudar la partida',e);}
   }
   function renderFinalRanking(game) {
@@ -376,9 +390,10 @@
     const canSeeComparison=ev.comparacionActorUid===user?.uid||ev.comparacionObjetivoUid===user?.uid;
     if(canSeeComparison&&(ev.cartaComparadaActor||ev.carta2)){const label=document.createElement('h3');label.textContent='Cartas comparadas (solo visibles para los dos jugadores implicados)';root.appendChild(label);if(ev.cartaComparadaActor)root.appendChild(makeCardVisual(ev.cartaComparadaActor,true));if(ev.carta2)root.appendChild(makeCardVisual(ev.carta2,true));}
     if(ev.cartaDescartada){const label=document.createElement('h3');label.textContent='Carta descartada por el efecto';root.appendChild(label);root.appendChild(makeCardVisual(ev.cartaDescartada,true));}
-    if(ev.cartaQuemada){const label=document.createElement('h3');label.textContent='Carta quemada al inicio de la ronda';root.appendChild(label);root.appendChild(makeCardVisual(ev.cartaQuemada,true));}
     if(ev.numeroElegido!==undefined){const guess=document.createElement('p');guess.textContent=`Valor adivinado: ${ev.numeroElegido} · ${ev.acierto?'¡Acierto!':'Fallo'}`;root.appendChild(guess);}
     const text=document.createElement('p');text.className='event-resolution';text.textContent=ev.texto||'La carta se ha jugado.';root.appendChild(text);
+    // La carta quemada va inmediatamente encima de la puntuación, no al principio del aviso.
+    if(ev.cartaQuemada){const label=document.createElement('h3');label.textContent='Carta quemada al inicio de la ronda';root.appendChild(label);root.appendChild(makeCardVisual(ev.cartaQuemada,true));}
     if(ev.puntuaciones){const label=document.createElement('h3');label.textContent='Puntuación actual';root.appendChild(label);const list=document.createElement('ul');Object.entries(ev.puntuaciones).forEach(([uid,pts])=>{const li=document.createElement('li');li.textContent=`${(room?.jugadores?.[uid]?.nombre)||'Jugador'}: ${pts} puntos`;list.appendChild(li);});root.appendChild(list);}
     const done=document.createElement('button');done.className='primary full';done.textContent='Cerrar';done.onclick=()=>root.classList.add('hidden');root.appendChild(done);
     root.classList.remove('hidden');root.classList.add('event-pop');clearTimeout(visualTimer);
@@ -490,7 +505,7 @@
       if(!card) throw new Error("No se ha podido robar una carta del mazo.");
       g.manos[user.uid].push(card); g.cartaRobada=true;
       addHistoryEntry(g,`${(data.jugadores[user.uid]||{}).nombre||"Un jugador"} roba una carta.`);
-      await db.ref(`salas/${currentCode}/juego`).set(g);
+      await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));
     } catch(e){fail("No se pudo robar carta",e);}
   }
   function eligibleTargets(g, data, actorUid, allowProtected=false) {
@@ -660,7 +675,7 @@
         g.jugadas=g.jugadas.filter(x=>x!==entry);
         g.manos[user.uid]=[...(g.manos[user.uid]||[]),card];
         g.cartaJugada=false;
-        await db.ref(`salas/${currentCode}/juego`).set(g);
+        await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));
         selectedCard=null;
         return;
       }
@@ -685,7 +700,7 @@
       if(entry.cartaComparadaActor||entry.cartaComparada){delete entry.cartaComparadaActor;delete entry.cartaComparada;}
       g.ultimaResolucionPublica=resolutionEvent;
       g.eventoVisual=resolutionEvent;
-      await db.ref(`salas/${currentCode}/juego`).set(g);selectedCard=null;
+      await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));selectedCard=null;
       // El efecto se guarda primero; después se avanza automáticamente al siguiente turno.
       await endTurn();
     } catch(e){fail("No se pudo jugar la carta",e);}
@@ -735,7 +750,7 @@
           g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;if(g.temporizadorActivo){g.tiempoRestanteMs=120000;g.turnoStartedAt=Date.now();g.partidaPausada=false;}
         }
       }
-      await db.ref(`salas/${currentCode}/juego`).set(g);
+      await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));
     } catch(e){fail("No se pudo terminar el turno",e);}
   }
   async function leaveRoom() {
