@@ -81,3 +81,17 @@ VERSIÓN v1.27
 - Versión de interfaz y caché actualizadas a v1.27.
 
 La corrección se ha validado estáticamente. No se ha probado una partida real con varios navegadores conectados al Firebase publicado.
+
+
+VERSIÓN 1.28
+- Consulta del catálogo durante la partida y alternancia corregida entre cartas de la mano.
+- Los efectos con objetivo obligatorio se cancelan sin consumir la carta si no se elige un objetivo.
+- Desempate de puntuación: el objetivo aumenta para todos hasta que solo un jugador lo alcance.
+- Contador de cartas jugadas por valor y ronda; las cartas quemadas y descartes por efecto no cuentan.
+- Estadísticas acumulativas en el pie de página. Publica firebase-rules.json en Firebase para permitir su lectura/escritura.
+
+IMPORTANTE PARA ESTADÍSTICAS v1.28
+1. Abre Firebase Console > Realtime Database > Rules.
+2. Sustituye las reglas por el contenido de firebase-rules.json y pulsa Publicar. Incluye los índices `creadaEn` y `creadorUid` necesarios para la limpieza y la reconciliación de estadísticas.
+3. Las estadísticas se guardan en /estadisticas y se muestran en el pie de página. Si no publicas las reglas, los contadores pueden quedarse en 0.
+Nota: el cliente solo incrementa los contadores si es el creador de la sala; una protección inviolable requeriría lógica de servidor.

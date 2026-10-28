@@ -1,0 +1,12 @@
+JUEGO DE TRONOS — CAMBIOS v1.28
+
+- Añadido catálogo de todas las cartas accesible durante la partida; la consulta abre las cartas en grande con su efecto.
+- Corregido el botón «Ver la otra carta»: ahora se puede alternar entre las dos cartas sin que desaparezca el control.
+- Si se cancela o no se selecciona un objetivo obligatorio, la carta vuelve a la mano y no consume el turno.
+- La victoria se comprueba tras aplicar todos los puntos de la ronda y las bonificaciones. Si varios jugadores alcanzan simultáneamente el objetivo, este sube para todos hasta que exista un único ganador.
+- Añadido contador por valor de cartas jugadas durante la ronda actual, con disponibilidad total basada en las 27 cartas (0–9). Se reinicia cada ronda y no cuenta la carta quemada ni descartes por efectos.
+- Mejorada la explicación de las cartas de valor 5.
+- Añadidas estadísticas persistentes de partidas creadas y finalizadas en el pie de página. La lógica de cliente registra las estadísticas solo desde el creador y utiliza marcas por sala para evitar duplicados; al abrir la aplicación, el creador reconcilia partidas propias pendientes de contabilizar.
+- Actualizada la versión visible y las referencias de caché.
+
+IMPORTANTE: para que las estadísticas funcionen, hay que publicar las reglas de firebase-rules.json en Firebase Realtime Database. Las reglas permiten lectura/escritura a usuarios autenticados; la limitación de que solo el creador incremente los contadores se aplica en el código cliente, no constituye una protección de servidor contra usuarios maliciosos. Para una garantía de seguridad real haría falta lógica de servidor (por ejemplo, Cloud Functions).

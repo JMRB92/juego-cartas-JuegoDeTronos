@@ -4,8 +4,13 @@
       ".read": "auth != null",
       ".write": "auth != null",
       ".indexOn": [
-        "creadaEn"
+        "creadaEn",
+        "creadorUid"
       ]
+    },
+    "estadisticas": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }
