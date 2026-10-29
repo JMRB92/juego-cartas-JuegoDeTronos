@@ -18,6 +18,23 @@ Revisión v1.28:
 - Las cancelaciones de objetivos obligatorios devuelven la carta a la mano y no consumen el turno.
 - El contador solo cuenta entradas marcadas como jugadas por un jugador, no descartes por efectos ni la carta quemada.
 - La puntuación objetivo se comprueba después de sumar tanto el punto de la ronda como las bonificaciones; si varios jugadores alcanzan el objetivo, este aumenta para todos.
-- Las estadísticas usan transacciones y marcas por sala para evitar incrementos duplicados; al volver a abrir la aplicación, el creador reconcilia partidas propias pendientes de contabilizar. Para leer/escribir el nodo global `estadisticas`, hay que publicar las reglas incluidas en `firebase-rules.json`. La restricción de escritura por creador se aplica en el código cliente; sin lógica de servidor no puede garantizarse frente a clientes manipulados.
+- Las estadísticas personales usan transacciones y marcas por sala para evitar incrementos duplicados; cada usuario solo puede leer/escribir su propio nodo `/estadisticas/{uid}` con las reglas incluidas en `firebase-rules.json`.
 
 Validación v1.28: `node --check app.js` correcto; 67 IDs HTML sin duplicados; 61 referencias estáticas `$()` verificadas, sin referencias ausentes; 27 imágenes incluidas; distribución del mazo comprobada (0:2, 1:8, 2:3, 3:3, 4:3, 5:2, 6:2, 7:2, 8:1, 9:1); `firebase-rules.json` válido. No se ha podido confirmar una partida multijugador real contra Firebase desde este entorno.
+
+
+Revisión correctiva v1.28 (mismo número de versión)
+- Modal de carta ubicado fuera de la sección oculta de juego; disponible desde catálogo de inicio y de partida.
+- Selección de objetivos distingue entre cancelación voluntaria y ausencia total de objetivos válidos.
+- Sin objetivos elegibles: la carta se conserva como jugada/descartada, se anuncia la resolución sin efecto y el turno avanza.
+
+
+Revisión correctiva adicional v1.28 (29/10/2026)
+- Añadida clase `card-image` a imágenes de cartas de la mano.
+- Brandon limita el número de objetivos a los disponibles y excluye objetivos ya elegidos.
+- Añadidos bloqueos locales contra doble ejecución de `playCard` y `endTurn`. El avance automático usa una llamada identificada para no bloquearse a sí mismo.
+- Añadida resolución de redirección de Tyrion al detectar que el objetivo conserva la carta 33 y se le ataca con una carta de valor 3 o 7. En la arquitectura actual, la selección se hace en el dispositivo que resuelve la jugada; una decisión remota controlada por el propietario de Tyrion requiere backend.
+- Sansa usa la carta que queda en la mano para detectar los valores 5 y 6.
+- Cambiado el token de caché de los recursos.
+
+Limitaciones no solucionables solo desde el frontend: las reglas actuales de Firebase dejan escribir a cualquier usuario autenticado en cualquier sala y en estadísticas globales; los valores privados de las manos también están en el estado compartido de la sala. Para un lanzamiento público seguro hace falta un backend/Cloud Functions y reglas que validen cada acción y separen datos privados.

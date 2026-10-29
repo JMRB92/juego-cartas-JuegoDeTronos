@@ -9,4 +9,21 @@ JUEGO DE TRONOS — CAMBIOS v1.28
 - Añadidas estadísticas persistentes de partidas creadas y finalizadas en el pie de página. La lógica de cliente registra las estadísticas solo desde el creador y utiliza marcas por sala para evitar duplicados; al abrir la aplicación, el creador reconcilia partidas propias pendientes de contabilizar.
 - Actualizada la versión visible y las referencias de caché.
 
-IMPORTANTE: para que las estadísticas funcionen, hay que publicar las reglas de firebase-rules.json en Firebase Realtime Database. Las reglas permiten lectura/escritura a usuarios autenticados; la limitación de que solo el creador incremente los contadores se aplica en el código cliente, no constituye una protección de servidor contra usuarios maliciosos. Para una garantía de seguridad real haría falta lógica de servidor (por ejemplo, Cloud Functions).
+IMPORTANTE: para que las estadísticas funcionen, hay que publicar las reglas de firebase-rules.json en Firebase Realtime Database. Las estadísticas son personales y las reglas limitan la lectura/escritura de cada nodo a su UID. Para una garantía de seguridad integral de las partidas hace falta lógica de servidor (por ejemplo, Cloud Functions).
+
+
+Corrección adicional v1.28 (sin cambiar el número de versión):
+- El modal de detalle de cartas se ha sacado de la pantalla de partida para que funcione también desde el catálogo de la pantalla de inicio.
+- Si un efecto necesita objetivo y no hay ningún rival válido por protección/eliminación, la carta se descarta sin efecto y el turno continúa. Si el usuario cancela cuando sí hay objetivos disponibles, la carta vuelve a su mano.
+- Se actualizó el identificador de caché de CSS y JavaScript manteniendo visible la versión v1.28.
+
+
+REVISIÓN CORRECTIVA v1.28 (29/10/2026; se conserva el número visible)
+- Las imágenes de la mano reciben la clase CSS correcta y respetan el tamaño de carta.
+- Brandon no permite elegir dos veces al mismo jugador y, en partidas de dos jugadores o cuando solo queda un objetivo elegible, consulta una sola carta.
+- Se añade protección contra dobles clics y ejecuciones simultáneas de terminar turno durante la resolución automática.
+- Se implementa la redirección del ataque de cartas 3/7 cuando el objetivo conserva a Tyrion (33). Para decidirla, el jugador de Tyrion debe comunicar su elección al jugador que está resolviendo la carta: la arquitectura actual no permite solicitar decisiones remotas autenticadas sin un backend.
+- Se corrige la comprobación de la otra carta al jugar Sansa (72), que podía no detectar un 5 o un 6.
+- Se actualizan los parámetros de caché para que el navegador cargue el código corregido.
+
+Limitación de seguridad: las reglas actuales de Realtime Database permiten que cualquier usuario autenticado escriba en las salas y en las estadísticas personales. El código de cliente evita duplicados en el uso normal, pero no puede impedir manipulación deliberada. Una protección real requiere reglas y un backend que valide las acciones del juego; no se puede resolver de forma fiable solo con JavaScript público.

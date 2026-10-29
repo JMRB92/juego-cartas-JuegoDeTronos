@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#171717">
   <title>Juego de Cartas · Juego de Tronos</title>
-  <link rel="stylesheet" href="styles.css?v=20261028v128">
+  <link rel="stylesheet" href="styles.css?v=20261029v128fix3">
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script defer src="firebase-config.js?v=20261021fix2"></script>
-  <script defer src="app.js?v=20261028v128"></script>
+  <script defer src="app.js?v=20261029v128fix3"></script>
 </head>
 <body>
   <header class="topbar">
@@ -83,13 +83,13 @@
       <div class="panel"><h3>Jugadores</h3><div id="zona-jugadores" class="players-grid"></div></div>
       <div class="panel"><div class="section-heading"><h3>Historial de la partida</h3><button id="btn-historial" class="secondary small-button" type="button">Ver historial completo</button></div><div id="cartas-jugadas" class="played-list"></div><ol id="historial-partida" class="event-log"></ol></div>
       <div id="evento-visual" class="event-overlay hidden" role="status" aria-live="polite"></div><div id="pantalla-final" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Clasificación final"><div class="info-modal-card final-ranking"><h2>Clasificación final</h2><p id="texto-ganador"></p><ol id="ranking-final"></ol><button id="cerrar-final" class="primary full">Cerrar clasificación</button></div></div>
-      <div id="modal-carta" class="card-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle de carta"><button id="cerrar-modal-carta" class="modal-close" type="button" aria-label="Cerrar">×</button><div id="contenido-modal-carta"></div></div>
       <div id="modal-historial" class="history-modal hidden" role="dialog" aria-modal="true" aria-label="Historial completo"><div class="history-modal-head"><h3>Historial de la partida</h3><button id="cerrar-modal-historial" class="secondary" type="button">Cerrar</button></div><ol id="historial-completo" class="event-log"></ol></div>
     </section>
 
-      <div id="modal-reglas" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Reglas del juego"><div class="info-modal-card rules-catalog"><button id="cerrar-reglas" class="modal-close" aria-label="Cerrar">×</button><p class="eyebrow">GUÍA COMPLETA</p><h2>Reglas de las cartas</h2><p>Pulsa cualquier carta para ampliarla y consultar su efecto. Dentro de la ficha puedes avanzar a la carta anterior o siguiente.</p><div id="catalogo-cartas" class="catalog-grid"></div></div></div>
+      <div id="modal-carta" class="card-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle de carta"><button id="cerrar-modal-carta" class="modal-close" type="button" aria-label="Cerrar">×</button><div id="contenido-modal-carta"></div></div>
+    <div id="modal-reglas" class="info-modal hidden" role="dialog" aria-modal="true" aria-label="Reglas del juego"><div class="info-modal-card rules-catalog"><button id="cerrar-reglas" class="modal-close" aria-label="Cerrar">×</button><p class="eyebrow">GUÍA COMPLETA</p><h2>Reglas de las cartas</h2><p>Pulsa cualquier carta para ampliarla y consultar su efecto. Dentro de la ficha puedes avanzar a la carta anterior o siguiente.</p><div id="catalogo-cartas" class="catalog-grid"></div></div></div>
     <div id="mensaje-global" class="global-message" role="status" aria-live="polite"></div>
   </main>
-  <footer><span>Prototipo privado · No introduzcas datos personales sensibles.</span><span class="app-stats">Partidas creadas: <strong id="estadisticas-creadas">0</strong> · Partidas finalizadas: <strong id="estadisticas-finalizadas">0</strong></span><span class="app-version">Juego de Tronos · v1.28</span></footer>
+  <footer><span>Prototipo privado · No introduzcas datos personales sensibles.</span><span class="app-stats">Tus partidas creadas: <strong id="estadisticas-creadas">0</strong> · Finalizadas: <strong id="estadisticas-finalizadas">0</strong></span><span class="app-version">Juego de Tronos · v1.28</span></footer>
 </body>
 </html>

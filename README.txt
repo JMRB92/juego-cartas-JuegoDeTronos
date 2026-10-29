@@ -92,6 +92,17 @@ VERSIÓN 1.28
 
 IMPORTANTE PARA ESTADÍSTICAS v1.28
 1. Abre Firebase Console > Realtime Database > Rules.
-2. Sustituye las reglas por el contenido de firebase-rules.json y pulsa Publicar. Incluye los índices `creadaEn` y `creadorUid` necesarios para la limpieza y la reconciliación de estadísticas.
-3. Las estadísticas se guardan en /estadisticas y se muestran en el pie de página. Si no publicas las reglas, los contadores pueden quedarse en 0.
+2. Sustituye las reglas por el contenido de firebase-rules.json y pulsa Publicar. Incluye los índices `creadaEn` y `creadorUid` necesarios para la limpieza y la reconciliación de estadísticas. Las estadísticas personales están limitadas al UID autenticado.
+3. Las estadísticas personales se guardan en /estadisticas/{uid} y se muestran en el pie de página. Si no publicas las reglas, los contadores pueden quedarse en 0.
 Nota: el cliente solo incrementa los contadores si es el creador de la sala; una protección inviolable requeriría lógica de servidor.
+
+
+REVISIÓN CORRECTIVA v1.28 (29/10/2026)
+Se han corregido el tamaño de las imágenes de la mano, la selección de objetivos distintos para Brandon, el bloqueo de dobles acciones de turno y la detección de 5/6 al jugar Sansa. Se incorpora la redirección de Tyrion para ataques de valor 3/7; hasta disponer de backend, el jugador de Tyrion debe comunicar su decisión al jugador que está resolviendo la carta.
+
+SEGURIDAD ANTES DE PUBLICAR
+El juego mantiene el estado compartido en Firebase Realtime Database. Las reglas incluidas son permisivas para permitir la escritura desde todos los clientes, por lo que no son adecuadas para proteger una partida pública contra manipulación intencionada. Tampoco garantizan que los datos de las manos sean privados técnicamente. Para una publicación abierta, hace falta trasladar la validación de las acciones a un backend/Cloud Functions y separar las manos privadas del estado público.
+
+
+ESTADÍSTICAS v1.28 CORREGIDAS
+Los contadores del pie de página son personales, no globales. Publica `firebase-rules.json`: cada usuario autenticado solo podrá leer y escribir `estadisticas/{su UID}`.

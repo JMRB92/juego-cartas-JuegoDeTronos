@@ -7,8 +7,8 @@
   const $ = id => document.getElementById(id);
   const config = window.FIREBASE_CONFIG;
   const screens = ["pantalla-inicio","pantalla-crear","pantalla-unirse","pantalla-lobby","pantalla-juego"];
-  let auth, db, user = null, currentCode = null, roomRef = null, roomCallback = null;
-  let room = null, selectedCard = null, busy = false;
+  let auth, db, user = null, currentCode = null, roomRef = null, roomCallback = null, statsRef = null, statsCallback = null;
+  let room = null, selectedCard = null, busy = false, playCardBusy = false, endTurnBusy = false;
   let catalogDetailReturn = false;
 
   function showScreen(id) {
@@ -26,20 +26,21 @@
     if(created)created.textContent=String(Number(stats.partidasCreadas||0));
     if(finished)finished.textContent=String(Number(stats.partidasFinalizadas||0));
   }
-  async function incrementGlobalStat(field) {
+  async function incrementUserStat(field) {
     if(!db || !['partidasCreadas','partidasFinalizadas'].includes(field))return;
-    await db.ref(`estadisticas/${field}`).transaction(value=>Number(value||0)+1);
+    if(!user?.uid)return;
+    await db.ref(`estadisticas/${user.uid}/${field}`).transaction(value=>Number(value||0)+1);
   }
   async function registerCreatedRoomOnce(code) {
     if(!user)return;
     const flagRef=db.ref(`salas/${code}/estadisticaCreada`);
     const claim=await flagRef.transaction(value=>value===true?undefined:true);
-    if(claim.committed){try{await incrementGlobalStat('partidasCreadas');}catch(e){await flagRef.remove().catch(()=>{});throw e;}}
+    if(claim.committed){try{await incrementUserStat('partidasCreadas');}catch(e){await flagRef.remove().catch(()=>{});throw e;}}
   }
   async function registerFinishedRoomOnce(code, data) {
     if(!user || !data || data.creadorUid!==user.uid || data.juego?.estado!=='finalizada')return;
     const claim=await db.ref(`salas/${code}/estadisticaFinalizada`).transaction(value=>value===true?undefined:true);
-    if(claim.committed)await incrementGlobalStat('partidasFinalizadas');
+    if(claim.committed)await incrementUserStat('partidasFinalizadas');
   }
   async function reconcileCreatorStats() {
     if(!user || !db)return;
@@ -176,7 +177,7 @@
   }
   function cardImagePath(card) {
     const id=String(card?.id || '').trim();
-    return card?.image || (id ? `assets/cartas/${id}.png` : '');
+    return window.CARD_IMAGE_DATA?.[id] || card?.image || (id ? `assets/cartas/${id}.png` : '');
   }
   function makeFallbackCard(card, compact=false) {
     const fallback=document.createElement('div'); fallback.className=compact?'fallback-mini':'fallback-card';
@@ -190,7 +191,7 @@
     if(!compact){wrap.type='button';wrap.className='playing-card';wrap.addEventListener('dblclick',()=>showCardDetails(card));wrap.title='Pulsa para jugar; doble clic para ampliar la carta';}
     else wrap.className='played-card';
     const path=cardImagePath(card);
-    if(path){const img=document.createElement('img');img.src=path;img.alt=card?.name||`Carta ${card?.id||''}`;img.loading='lazy';img.onerror=()=>{img.remove();wrap.insertBefore(makeFallbackCard(card,compact),wrap.firstChild);};wrap.appendChild(img);}
+    if(path){const img=document.createElement('img');if(!compact)img.className='card-image';img.src=path;img.alt=card?.name||`Carta ${card?.id||''}`;img.loading='lazy';img.onerror=()=>{img.remove();wrap.insertBefore(makeFallbackCard(card,compact),wrap.firstChild);};wrap.appendChild(img);}
     else wrap.appendChild(makeFallbackCard(card,compact));
     if(compact){const copy=document.createElement('div');copy.className='played-card-copy';const name=document.createElement('strong');name.textContent=card?.name||`Carta ${card?.id||''}`;copy.appendChild(name);const number=document.createElement('small');number.textContent=`Número/valor: ${card?.value ?? '—'}`;copy.appendChild(number);const effect=document.createElement('span');effect.textContent=card?.effect||cardEffect(card?.id);copy.appendChild(effect);wrap.appendChild(copy);}
     else {const info=document.createElement('div');info.className='card-info';const value=document.createElement('span');value.className='value';value.textContent=card?.value ?? '?';info.appendChild(value);const name=document.createElement('span');name.className='card-name';name.textContent=card?.name||`Carta ${card?.id||''}`;info.appendChild(name);wrap.appendChild(info);}
@@ -383,7 +384,7 @@
     const content=$('contenido-modal-carta');content.querySelector('.card-actions')?.remove();
     const actions=document.createElement('div');actions.className='card-actions';
     const play=document.createElement('button');play.className='primary full';play.textContent='Jugar esta carta';
-    play.addEventListener('click',()=>{ $('modal-carta').classList.add('hidden'); playCard(index); });actions.appendChild(play);
+    play.addEventListener('click',()=>{ if(playCardBusy||endTurnBusy)return; $('modal-carta').classList.add('hidden'); playCard(index); });actions.appendChild(play);
     const other=document.createElement('button');other.className='secondary full';other.textContent='Ver la otra carta';other.disabled=mine.length<2;
     other.addEventListener('click',()=>showHandCardActions(index===0?1:0));actions.appendChild(other);
     content.appendChild(actions);
@@ -426,7 +427,7 @@
     showSharedEvent(game);
     const myTurn=game.turnoUid===user?.uid&&!game.partidaPausada;
     $('btn-robar').disabled=!myTurn||!!game.cartaRobada||!!game.cartaJugada;
-    $('btn-pasar').disabled=!myTurn||!game.cartaJugada;
+    $('btn-pasar').disabled=!myTurn||!game.cartaJugada||endTurnBusy||playCardBusy;
     $('mensaje-turno').textContent=game.estado==='finalizada'?(game.eventoVisual?.texto||'La partida ha terminado.'):(myTurn?(game.cartaRobada?'Elige una carta para leer su efecto antes de jugarla.':'Es tu turno. Roba una carta y después elige cuál jugar.'):'Esperando el turno de otro jugador.');
     if(game.estado==='finalizada'){ $('btn-robar').disabled=true; $('btn-pasar').disabled=true; } if(game.partidaPausada){$('btn-robar').disabled=true;$('btn-pasar').disabled=true;$('mensaje-turno').textContent='Partida pausada por un jugador.';}
   }
@@ -565,8 +566,9 @@
       await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));
     } catch(e){fail("No se pudo robar carta",e);}
   }
-  function eligibleTargets(g, data, actorUid, allowProtected=false) {
-    return Object.values(data.jugadores||{}).filter(p=>p.uid!==actorUid && (g.manos?.[p.uid]||[]).length>0 && (allowProtected || !(g.protegidos||{})[p.uid]));
+  function eligibleTargets(g, data, actorUid, allowProtected=false, excludedUids=[]) {
+    const excluded=new Set(excludedUids||[]);
+    return Object.values(data.jugadores||{}).filter(p=>p.uid!==actorUid && !excluded.has(p.uid) && (g.manos?.[p.uid]||[]).length>0 && (allowProtected || !(g.protegidos||{})[p.uid]));
   }
   function chooseFromDropdown(title, options, placeholder='Selecciona una opción') {
     return new Promise(resolve=>{
@@ -586,10 +588,14 @@
       row.append(ok,cancel);content.appendChild(row);modal.classList.remove('hidden');
     });
   }
-  async function chooseTarget(g, data, actorUid, promptText='Elige el jugador objetivo', allowProtected=false) {
-    const targets=eligibleTargets(g,data,actorUid,allowProtected);
-    if(!targets.length) return null;
+  async function chooseTarget(g, data, actorUid, promptText='Elige el jugador objetivo', allowProtected=false, entry=null, excludedUids=[]) {
+    const targets=eligibleTargets(g,data,actorUid,allowProtected,excludedUids);
+    if(!targets.length) {
+      if(entry) entry.noEligibleTargets=true;
+      return null;
+    }
     const picked=await chooseFromDropdown(promptText,targets.map(p=>({value:p.uid,label:p.nombre||'Jugador'})),'Elige un jugador');
+    if(entry) entry.noEligibleTargets=false;
     return picked?targets.find(p=>p.uid===picked)||null:null;
   }
   function announce(g, tipo, texto, extra={}) {
@@ -649,13 +655,13 @@
     const id=String(card.id), value=Number(card.value??id[0]);
     const addPlayed=(uid,c,result)=>{if(!Array.isArray(g.jugadas))g.jugadas=[];g.jugadas.push({uid,nombre:data.jugadores?.[uid]?.nombre||'Jugador',carta:c,esDescarte:true,resultado:result,timestamp:Date.now()});};
     if(id==='01'){
-      const target=await chooseTarget(g,data,actorUid,'Theon Greyjoy: elige a cualquier jugador vivo al que llorar, incluso si está protegido.',true);
+      const target=await chooseTarget(g,data,actorUid,'Theon Greyjoy: elige a cualquier jugador vivo al que llorar, incluso si está protegido.',true,entry);
       if(target){g.apuestasTheon=g.apuestasTheon||{};g.apuestasTheon[target.uid]=actorUid;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} llora por ${target.nombre}. Si gana la ronda, ${actorName} obtiene un punto adicional.`;announce(g,'carta',entry.resultado,{carta:card});}else{entry.cancelled=true;entry.resultado='No se eligió un jugador. La carta no se ha jugado.';}
       return;
     }
     if(id==='02'){entry.resultado='Arya Stark queda descartada. Su habilidad defensiva se aplica si un efecto intenta eliminar a quien la conserva.';return;}
     if(value===1){
-      const target=await chooseTarget(g,data,actorUid,'Guerrero: elige un jugador para adivinar su carta.');if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}
+      const target=await chooseTarget(g,data,actorUid,'Guerrero: elige un jugador para adivinar su carta.',false,entry);if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}
       const raw=await chooseFromDropdown('Adivina el valor de la carta de '+(target.nombre||'tu objetivo'),[0,2,3,4,5,6,7,8,9].map(n=>({value:n,label:String(n)})),'Elige un valor (no se puede elegir 1)');if(raw===null){entry.cancelled=true;entry.resultado='Adivinación cancelada. La carta no se ha jugado.';return;}
       const guess=Number(raw);
       const targetCard=(g.manos?.[target.uid]||[])[0];if(!targetCard)throw new Error('El jugador seleccionado ya no tiene una carta en la mano.');const targetValue=Number(targetCard.value??String(targetCard.id)[0]);const hit=targetValue===guess;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.numeroElegido=guess;
@@ -663,9 +669,14 @@
       addHistoryEntry(g,entry.resultado,'effect');announce(g,'ataque',entry.resultado,{carta:card,numeroElegido:guess,acierto:hit});return;
     }
     if(value===2){
-      const count=id==='22'?2:1;const seen=[];
+      const requestedCount=id==='22'?2:1;
+      // Brandon solo puede mirar jugadores distintos y nunca pregunta por un segundo
+      // objetivo cuando solo queda un rival elegible (partida de dos jugadores).
+      const available=eligibleTargets(g,data,actorUid,false);
+      const count=Math.min(requestedCount,available.length);const seen=[];
       for(let i=0;i<count;i++){
-        const target=await chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1}${count===2?' de hasta dos':''} cuya carta quieres ver en secreto.`);
+        const excluded=seen.map(x=>x.target.uid);
+        const target=await chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1} de ${count} cuya carta quieres ver en secreto.`,false,entry,excluded);
         if(!target){if(i===0){entry.cancelled=true;entry.resultado='No se eligió ningún jugador. La carta no se ha jugado.';}break;}
         const targetCard=(g.manos?.[target.uid]||[])[0];
         if(targetCard){seen.push({target,targetCard});entry.cartaVista=targetCard;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;}
@@ -680,17 +691,26 @@
     }
     if(value===3||id==='71'){
       let dieRule=id==='71'?'higher':'lower';if(id==='33'){const answer=await chooseFromDropdown('Tyrion Lannister: ¿qué carta debe morir?',[{value:'mayor',label:'La carta de mayor valor'},{value:'menor',label:'La carta de menor valor'}],'Elige una opción');if(answer===null){entry.cancelled=true;entry.resultado='Comparación cancelada. La carta no se ha jugado.';return;}dieRule=answer==='mayor'?'higher':'lower';}
-      const target=await chooseTarget(g,data,actorUid,`Estratega: elige a un jugador para comparar (muere la carta ${dieRule==='higher'?'mayor':'menor'}).`);if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}
+      let target=await chooseTarget(g,data,actorUid,`Estratega: elige a un jugador para comparar (muere la carta ${dieRule==='higher'?'mayor':'menor'}).`,false,entry);if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}
+      // Tyrion (33) permite redirigir un ataque de valor 3 o 7 si lo conserva
+      // el objetivo inicial. En esta versión, el selector aparece en el dispositivo
+      // que está resolviendo la jugada; en partidas presenciales el jugador de Tyrion
+      // debe indicar su decisión al atacante. Una autorización remota real requiere backend.
+      const heldByTarget=(g.manos?.[target.uid]||[])[0];
+      if(String(heldByTarget?.id)==='33' && (value===3 || id==='71')){
+        const redirect=await chooseTarget(g,data,actorUid,`${target.nombre} conserva a Tyrion y puede redirigir el ataque. Elige el nuevo objetivo indicado por ese jugador.`,false,null,[target.uid]);
+        if(redirect){entry.redirigidoPor=target.nombre;entry.objetivoOriginalNombre=target.nombre;target=redirect;entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`Tyrion de ${entry.redirigidoPor} redirige el ataque hacia ${target.nombre}.`;}
+      }
       const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(!mine||!theirs){entry.resultado='No se pudo comparar: falta una carta.';return;}
       const mv=Number(mine.value)+(id==='42'?1:0),tv=Number(theirs.value);let loser=null;if(mv!==tv)loser=(dieRule==='higher'?(mv>tv?actorUid:target.uid):(mv<tv?actorUid:target.uid));
       entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.cartaComparadaActor=mine;entry.cartaComparada=theirs;
       entry.comparacionActorUid=actorUid;entry.comparacionObjetivoUid=target.uid;
-      if(loser){const res=eliminateOrSave(g,data,loser,`comparación de ${actorName}`,entry);entry.resultado=`Comparación resuelta entre ${actorName} y ${target.nombre}. ${res.message}`;}else entry.resultado=`Comparación entre ${actorName} y ${target.nombre}: empate; nadie muere.`;
+      const redirectPrefix=entry.redirigidoPor?`Tyrion de ${entry.redirigidoPor} redirigió el ataque. `:'';if(loser){const res=eliminateOrSave(g,data,loser,`comparación de ${actorName}`,entry);entry.resultado=`${redirectPrefix}Comparación resuelta entre ${actorName} y ${target.nombre}. ${res.message}`;}else entry.resultado=`${redirectPrefix}Comparación entre ${actorName} y ${target.nombre}: empate; nadie muere.`;
       addHistoryEntry(g,entry.resultado,'effect');announce(g,'comparacion',entry.resultado,{comparacionActorUid:actorUid,comparacionObjetivoUid:target.uid,cartaComparadaActor:mine,carta2:theirs});return;
     }
     if(value===4){g.protegidos=g.protegidos||{};g.protegidos[actorUid]=true;if(id==='42'){g.bonusFinalUid=actorUid;}entry.resultado=`${actorName} queda PROTEGIDO hasta que vuelva a comenzar su turno.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;}
     if(value===5){
-      const target=await chooseTarget(g,data,actorUid,'Gemelo: elige un jugador.');if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(!held){entry.resultado=`${target.nombre} ya está eliminado.`;return;}
+      const target=await chooseTarget(g,data,actorUid,'Gemelo: elige un jugador.',false,entry);if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;if(!held){entry.resultado=`${target.nombre} ya está eliminado.`;return;}
       if(Number(held.value)===5){g.forcedWinnerUid=actorUid;entry.resultado=`${target.nombre} tenía el otro 5. ${actorName} gana la ronda.`;announce(g,'ronda',entry.resultado,{carta:card});}
       else {addPlayed(target.uid,held,`${target.nombre} descarta ${held.name} por el efecto de ${actorName}.`);entry.cartaDescartada=held;if(Number(held.value)===8){g.manos[target.uid]=[];entry.resultado=`${target.nombre} descarta a Daenerys (8) y queda eliminado.`;}else{const replacement=(g.mazo||[]).pop();g.manos[target.uid]=replacement?[replacement]:[];entry.resultado=replacement?`${target.nombre} descarta ${held.name} y roba una carta de reemplazo.`:`${target.nombre} descarta ${held.name}, pero no quedan cartas para robar; queda eliminado.`;}announce(g,'carta',entry.resultado,{carta:held});}addHistoryEntry(g,entry.resultado,'effect');return;
     }
@@ -698,12 +718,12 @@
       const alive=Object.keys(data.jugadores||{}).filter(uid=>(g.manos?.[uid]||[]).length>0);const pool=alive.map(uid=>g.manos[uid][0]).sort(()=>Math.random()-.5);alive.forEach((uid,i)=>g.manos[uid]=[pool[i]]);entry.resultado=`${actorName} jugó al Rey de la Noche: las cartas de los jugadores vivos se repartieron de nuevo al azar.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;
     }
     if(id==='62'){
-      const target=await chooseTarget(g,data,actorUid,'Joffrey: elige a un jugador para intercambiar las cartas.');if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(mine&&theirs){g.manos[actorUid]=[theirs];g.manos[target.uid]=[mine];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;announce(g,'carta',entry.resultado,{carta:card});}return;
+      const target=await chooseTarget(g,data,actorUid,'Joffrey: elige a un jugador para intercambiar las cartas.',false,entry);if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}const mine=(g.manos?.[actorUid]||[])[0],theirs=(g.manos?.[target.uid]||[])[0];if(mine&&theirs){g.manos[actorUid]=[theirs];g.manos[target.uid]=[mine];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;entry.resultado=`${actorName} intercambió su carta con ${target.nombre}.`;announce(g,'carta',entry.resultado,{carta:card});}return;
     }
-    if(id==='72') {const hand=g.manos?.[actorUid]||[];const other=hand.find(c=>c.uid!==card.uid);if([5,6].includes(Number(other?.value))){entry.resultado=`Sansa se descarta obligatoriamente porque conservas un ${other.value}.`;}else{const ans=window.confirm('¿Quieres descartar Sansa voluntariamente? Pulsa Aceptar para descartarla o Cancelar para conservarla.');if(!ans){entry.cancelled=true;entry.resultado='Sansa se conserva en la mano.';return;}}return;}
+    if(id==='72') {const hand=g.manos?.[actorUid]||[];const other=hand[0];if([5,6].includes(Number(other?.value))){entry.resultado=`Sansa se descarta obligatoriamente porque conservas un ${other.value}.`;}else{const ans=window.confirm('¿Quieres descartar Sansa voluntariamente? Pulsa Aceptar para descartarla o Cancelar para conservarla.');if(!ans){entry.cancelled=true;entry.resultado='Sansa se conserva en la mano.';return;}}return;}
     if(id==='81'){g.manos[actorUid]=[];entry.resultado=`${actorName} descarta voluntariamente a Daenerys (8) y queda eliminado de la ronda.`;addHistoryEntry(g,entry.resultado,'effect');announce(g,'carta',entry.resultado,{carta:card});return;}
     if(id==='91'){
-      const target=await chooseTarget(g,data,actorUid,'Drogon: elige un jugador no protegido para atacar.');if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;
+      const target=await chooseTarget(g,data,actorUid,'Drogon: elige un jugador no protegido para atacar.',false,entry);if(!target){entry.cancelled=true;entry.resultado='No se eligió objetivo. La carta no se ha jugado.';return;}const held=(g.manos?.[target.uid]||[])[0];entry.objetivoUid=target.uid;entry.objetivoNombre=target.nombre;
       if(Number(held?.value)===8)entry.resultado=`${target.nombre} tiene a Daenerys (8): Drogon no puede eliminarlo.`;
       else if(String(held?.id)==='18'){const res=eliminateOrSave(g,data,target.uid,'ataque de Drogon',entry);entry.resultado=`${target.nombre} tenía a Jon Snow. ${res.message}`;}
       else {const res=eliminateOrSave(g,data,target.uid,`ataque de Drogon de ${actorName}`,entry);entry.resultado=res.message;}
@@ -711,6 +731,8 @@
     }
   }
   async function playCard(index) {
+    if(playCardBusy || endTurnBusy)return;
+    playCardBusy=true;
     try {
       const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
       if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno."); if(g.partidaPausada)throw new Error("La partida está pausada.");
@@ -728,8 +750,14 @@
       addHistoryEntry(g,`${playerName} juega ${card.name||`la carta ${card.id||""}`} (valor ${card.value??"—"}).`,"effect");
       // Aplicar el efecto real de la carta antes de guardar el estado compartido.
       await resolveCardEffect(g,data,user.uid,card,entry);
-      // Cualquier cancelación de un selector devuelve la carta a la mano y no consume el turno.
-      if(entry.cancelled){
+      // Sin objetivos válidos (por ejemplo, todos los rivales están protegidos), la carta se descarta
+      // sin efecto y el turno continúa. Si el jugador cancela un selector con opciones, vuelve a su mano.
+      if(entry.cancelled && entry.noEligibleTargets){
+        entry.cancelled=false;
+        entry.resultado='No hay jugadores válidos a los que aplicar este efecto (todos están protegidos o eliminados). La carta se descarta sin efecto.';
+        addHistoryEntry(g,entry.resultado,'effect');
+        announce(g,'carta',entry.resultado,{carta:card});
+      } else if(entry.cancelled){
         g.jugadas=g.jugadas.filter(x=>x!==entry);
         g.manos[user.uid]=[...(g.manos[user.uid]||[]),card];
         g.cartaJugada=false;
@@ -739,6 +767,7 @@
         say(entry.resultado||'Acción cancelada. Puedes volver a intentarlo.');
         return;
       }
+      delete entry.noEligibleTargets;
       // Public resolution contains only information that may be shown to everyone.
       // Secret card peeks are intentionally excluded.
       const resolutionEvent={
@@ -762,10 +791,14 @@
       g.eventoVisual=resolutionEvent;
       await db.ref(`salas/${currentCode}/juego`).set(cleanFirebaseValue(g));selectedCard=null;
       // El efecto se guarda primero; después se avanza automáticamente al siguiente turno.
-      await endTurn();
+      await endTurn(true);
     } catch(e){fail("No se pudo jugar la carta",e);}
+    finally {playCardBusy=false;if(room?.juego)renderGame();}
   }
-  async function endTurn() {
+  async function endTurn(autoAfterPlay=false) {
+    if(endTurnBusy || (playCardBusy && !autoAfterPlay))return;
+    endTurnBusy=true;
+    const passButton=$("btn-pasar");if(passButton)passButton.disabled=true;
     try {
       const snap=await db.ref(`salas/${currentCode}`).once("value"), data=snap.val(), g=data?.juego;
       if(!g||g.turnoUid!==user.uid) throw new Error("No es tu turno."); if(g.partidaPausada)throw new Error("La partida está pausada.");
@@ -821,6 +854,7 @@
       }
       const updates={juego:cleanFirebaseValue(g)};if(data.puntosObjetivo!==undefined)updates.puntosObjetivo=data.puntosObjetivo;await db.ref(`salas/${currentCode}`).update(cleanFirebaseValue(updates));
     } catch(e){fail("No se pudo terminar el turno",e);}
+    finally {endTurnBusy=false;if(room?.juego)renderGame();}
   }
   async function leaveRoom() {
     try {
@@ -869,8 +903,18 @@
       if(!window.firebase || !config) throw new Error("No se han cargado los scripts o la configuración de Firebase.");
       if(!firebase.apps.length) firebase.initializeApp(config);
       auth=firebase.auth(); db=firebase.database();
-      db.ref('estadisticas').on('value',snap=>updateStatsUI(snap.val()||{}),err=>{console.warn('No se pudieron leer las estadísticas globales',err);updateStatsUI({});});
-      auth.onAuthStateChanged(u=>{user=u||null;if(u){setStatus("Firebase conectado","ok");cleanupExpiredRooms();reconcileCreatorStats().catch(e=>console.warn('No se pudieron reconciliar las estadísticas del creador',e));}else setStatus("Iniciando sesión…");});
+      auth.onAuthStateChanged(u=>{
+        user=u||null;
+        if(statsRef&&statsCallback)statsRef.off('value',statsCallback);
+        statsRef=null;statsCallback=null;
+        if(u){
+          setStatus("Firebase conectado","ok");
+          statsRef=db.ref(`estadisticas/${u.uid}`);
+          statsCallback=snap=>updateStatsUI(snap.val()||{});
+          statsRef.on('value',statsCallback,err=>{console.warn('No se pudieron leer tus estadísticas',err);updateStatsUI({});});
+          cleanupExpiredRooms();reconcileCreatorStats().catch(e=>console.warn('No se pudieron reconciliar las estadísticas del creador',e));
+        }else{setStatus("Iniciando sesión…");updateStatsUI({});}
+      });
       auth.signInAnonymously().catch(e=>{setStatus("Error de autenticación","bad");fail("No se pudo iniciar sesión anónima",e);});
       wire();
       if(!timerInterval)timerInterval=window.setInterval(()=>{if(room?.juego)updateTimerUI(room.juego);},1000);
