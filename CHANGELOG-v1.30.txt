@@ -1,0 +1,7 @@
+JUEGO DE TRONOS — CAMBIOS v1.30
+
+- Corregido el efecto de las cartas de valor 2 (Curioso).
+- Si no queda ningún rival seleccionable —porque solo queda vivo el jugador que la juega o porque el único rival vivo está protegido—, la carta se juega y se descarta sin efecto.
+- La situación ya no cancela la jugada ni devuelve la carta a la mano.
+- Se mantiene el comportamiento normal cuando existe al menos un objetivo válido.
+- Se conserva la compatibilidad del recuento de estadísticas con las salas creadas en v1.29.

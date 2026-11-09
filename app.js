@@ -49,8 +49,8 @@
     snap.forEach(child=>{
       const data=child.val();
       // Solo salas creadas por v1.29 o posterior: no contar retrospectivamente salas antiguas.
-      if(data?.versionCreacion==='1.29' && data.estadisticaCreada!==true)jobs.push(registerCreatedRoomOnce(child.key));
-      if(data?.versionCreacion==='1.29' && data.estadisticaCreada===true && data.estadisticaFinalizada!==true && data.juego?.estado==='finalizada')jobs.push(registerFinishedRoomOnce(child.key,data));
+      if(['1.29','1.30'].includes(data?.versionCreacion) && data.estadisticaCreada!==true)jobs.push(registerCreatedRoomOnce(child.key));
+      if(['1.29','1.30'].includes(data?.versionCreacion) && data.estadisticaCreada===true && data.estadisticaFinalizada!==true && data.juego?.estado==='finalizada')jobs.push(registerFinishedRoomOnce(child.key,data));
     });
     await Promise.all(jobs);
   }
@@ -471,7 +471,7 @@
         const candidate=randomCode(), ref=db.ref(`salas/${candidate}`);
         const snap=await ref.once("value");
         if(snap.exists()) continue;
-        const data={codigo:candidate,creadorUid:user.uid,versionCreacion:'1.29',maxJugadores:max,puntosObjetivo:target,temporizadorActivo:$("temporizador-activo")?.value==="si",reingresoAbierto:true,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,conectado:true,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
+        const data={codigo:candidate,creadorUid:user.uid,versionCreacion:'1.30',maxJugadores:max,puntosObjetivo:target,temporizadorActivo:$("temporizador-activo")?.value==="si",reingresoAbierto:true,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,conectado:true,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
         // El código es aleatorio; set crea el nodo. En colisión extremadamente improbable se comprueba antes.
         await ref.set(data); code=candidate;
       }
@@ -677,6 +677,16 @@
       // objetivo cuando solo queda un rival elegible (partida de dos jugadores).
       const available=eligibleTargets(g,data,actorUid,false);
       const count=Math.min(requestedCount,available.length);const seen=[];
+      // Si no hay ningún rival seleccionable (porque solo queda el propio jugador
+      // o porque el único rival vivo está protegido), la carta se juega y se
+      // descarta normalmente, pero su efecto no hace nada.
+      if(count===0){
+        entry.resultado=`${actorName} juega ${card.name||'la carta 2'}, pero no hay ningún jugador válido al que mirar. La carta se descarta sin efecto.`;
+        entry.cartasVistas=[];
+        addHistoryEntry(g,entry.resultado,'effect');
+        announce(g,'carta',entry.resultado,{carta:card});
+        return;
+      }
       for(let i=0;i<count;i++){
         const excluded=seen.map(x=>x.target.uid);
         const target=await chooseTarget(g,data,actorUid,`Curioso: elige al jugador ${i+1} de ${count} cuya carta quieres ver en secreto.`,false,entry,excluded);
@@ -921,7 +931,7 @@
       auth.signInAnonymously().catch(e=>{setStatus("Error de autenticación","bad");fail("No se pudo iniciar sesión anónima",e);});
       wire();
       if(!timerInterval)timerInterval=window.setInterval(()=>{if(room?.juego)updateTimerUI(room.juego);},1000);
-      console.log("Aplicación cargada. Versión JDT v1.29.");
+      console.log("Aplicación cargada. Versión JDT v1.30.");
     } catch(e) {setStatus("Error de configuración","bad");fail("No se pudo iniciar la aplicación",e);}
   }
   document.addEventListener("DOMContentLoaded",boot);
