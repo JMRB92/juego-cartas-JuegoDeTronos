@@ -1,0 +1,11 @@
+JUEGO DE TRONOS — CAMBIOS v1.29
+
+- En partidas de exactamente dos jugadores se retiran del mazo las cartas 01, 02, 12, 13, 18, 22, 33, 42, 61, 71 y 91.
+- Las cartas excluidas no se pueden robar, repartir, quemar al inicio de ronda ni aparecer en las rondas siguientes.
+- En partidas de tres o más jugadores se mantiene el mazo completo de 27 cartas.
+- El catálogo informativo sigue mostrando las 27 cartas: la exclusión afecta únicamente a la composición del mazo durante partidas de dos jugadores.
+- Se actualiza la versión visible a v1.29 y los identificadores de caché.
+
+Composición de mazos:
+- 2 jugadores: 16 cartas disponibles antes de quemar y repartir. Se quema 1, se reparte 1 a cada jugador y quedan 13 en el mazo.
+- 3 o más jugadores: se conserva el mazo completo de 27 cartas.

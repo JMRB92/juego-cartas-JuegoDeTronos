@@ -106,3 +106,7 @@ El juego mantiene el estado compartido en Firebase Realtime Database. Las reglas
 
 ESTADÍSTICAS v1.28 CORREGIDAS
 Los contadores del pie de página son personales, no globales. Publica `firebase-rules.json`: cada usuario autenticado solo podrá leer y escribir `estadisticas/{su UID}`.
+
+
+CAMBIO v1.29 — MAZO PARA DOS JUGADORES
+En partidas de dos jugadores se excluyen del mazo las cartas 01, 02, 12, 13, 18, 22, 33, 42, 61, 71 y 91. La exclusión se aplica al inicio y en cada nueva ronda, antes de quemar y repartir cartas. El catálogo mantiene visibles todas las cartas. En partidas de tres o más jugadores se utiliza el mazo completo.

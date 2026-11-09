@@ -48,9 +48,9 @@
     const jobs=[];
     snap.forEach(child=>{
       const data=child.val();
-      // Solo salas creadas por v1.28 o posterior: no contar retrospectivamente salas antiguas.
-      if(data?.versionCreacion==='1.28' && data.estadisticaCreada!==true)jobs.push(registerCreatedRoomOnce(child.key));
-      if(data?.versionCreacion==='1.28' && data.estadisticaCreada===true && data.estadisticaFinalizada!==true && data.juego?.estado==='finalizada')jobs.push(registerFinishedRoomOnce(child.key,data));
+      // Solo salas creadas por v1.29 o posterior: no contar retrospectivamente salas antiguas.
+      if(data?.versionCreacion==='1.29' && data.estadisticaCreada!==true)jobs.push(registerCreatedRoomOnce(child.key));
+      if(data?.versionCreacion==='1.29' && data.estadisticaCreada===true && data.estadisticaFinalizada!==true && data.juego?.estado==='finalizada')jobs.push(registerFinishedRoomOnce(child.key,data));
     });
     await Promise.all(jobs);
   }
@@ -141,9 +141,12 @@
     $("estado-partida").textContent=host?"Puedes iniciar cuando haya al menos 2 jugadores.":"El anfitrión iniciará la partida cuando todos estén listos.";
     showScreen("pantalla-lobby");
   }
-  function makeDeck() {
-    // 27 cartas del mazo conocido. Las imágenes originales se cargan desde assets/cartas.
-    const ids=["01","02","11","12","13","14","15","16","17","18","21","22","23","31","32","33","41","42","43","51","52","61","62","71","72","81","91"];
+  function makeDeck(playerCount=0) {
+    // En partidas de dos jugadores se retiran estas 11 cartas del mazo completo.
+    // Se excluyen antes de quemar/repartir, por lo que tampoco pueden aparecer en rondas posteriores.
+    const idsCompletos=["01","02","11","12","13","14","15","16","17","18","21","22","23","31","32","33","41","42","43","51","52","61","62","71","72","81","91"];
+    const excluidasDosJugadores=new Set(["01","02","12","13","18","22","33","42","61","71","91"]);
+    const ids=Number(playerCount)===2?idsCompletos.filter(id=>!excluidasDosJugadores.has(id)):idsCompletos;
     return ids.map((id,i)=>({id,value:Number(id[0]),name:cardName(id),characteristic:CARD_META[id]?.[1]||"Carta",character:CARD_META[id]?.[2]||"",effect:cardEffect(id),image:`assets/cartas/${id}.png`,uid:`${id}-${i}`}));
   }
   const CARD_META = {
@@ -468,7 +471,7 @@
         const candidate=randomCode(), ref=db.ref(`salas/${candidate}`);
         const snap=await ref.once("value");
         if(snap.exists()) continue;
-        const data={codigo:candidate,creadorUid:user.uid,versionCreacion:'1.28',maxJugadores:max,puntosObjetivo:target,temporizadorActivo:$("temporizador-activo")?.value==="si",reingresoAbierto:true,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,conectado:true,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
+        const data={codigo:candidate,creadorUid:user.uid,versionCreacion:'1.29',maxJugadores:max,puntosObjetivo:target,temporizadorActivo:$("temporizador-activo")?.value==="si",reingresoAbierto:true,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,conectado:true,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
         // El código es aleatorio; set crea el nodo. En colisión extremadamente improbable se comprueba antes.
         await ref.set(data); code=candidate;
       }
@@ -539,7 +542,7 @@
       if(!data || data.estado!=="esperando") throw new Error("La sala ya no está esperando jugadores.");
       const players=Object.values(data.jugadores||{});
       if(players.length<2) throw new Error("Se necesitan al menos 2 jugadores.");
-      const deck=makeDeck().sort(()=>Math.random()-.5);
+      const deck=makeDeck(players.length).sort(()=>Math.random()-.5);
       const cartaQuemada=deck.pop(); // Se quema antes de repartir y se revela al cerrar la ronda.
       const hands={}; const scores={};
       players.forEach(p=>{hands[p.uid]=[deck.pop()];scores[p.uid]=0;});
@@ -840,7 +843,7 @@
             g.eventoVisual.texto+=`\n\n¡${matchWinner.nombre} gana la partida! Ha alcanzado ${g.puntos[matchWinner.uid]} puntos (objetivo: ${objective}).`;
           } else {
             g.ronda=(g.ronda||1)+1;
-            const newDeck=makeDeck().sort(()=>Math.random()-.5), newHands={};
+            const newDeck=makeDeck(players.length).sort(()=>Math.random()-.5), newHands={};
             g.cartaQuemada=newDeck.pop();
             players.forEach(p=>{newHands[p.uid]=[newDeck.pop()];});
             g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;if(g.temporizadorActivo){g.tiempoRestanteMs=120000;g.turnoStartedAt=Date.now();g.partidaPausada=false;}
@@ -848,7 +851,7 @@
         } else {
           addHistoryEntry(g,'La ronda termina en empate; no se asigna punto.','round');
           g.eventoVisual={...(lastResolution||{}),id:Date.now()+Math.random(),tipo:'ronda',cartaQuemada:g.cartaQuemada||null,texto:`${lastResolution?.texto||'Se ha resuelto la última carta jugada.'}\n\nFin de ronda: la ronda termina en empate. Nadie suma puntos.`,puntuaciones:{...(g.puntos||{})}};
-          g.ronda=(g.ronda||1)+1;const newDeck=makeDeck().sort(()=>Math.random()-.5),newHands={};g.cartaQuemada=newDeck.pop();players.forEach(p=>newHands[p.uid]=[newDeck.pop()]);
+          g.ronda=(g.ronda||1)+1;const newDeck=makeDeck(players.length).sort(()=>Math.random()-.5),newHands={};g.cartaQuemada=newDeck.pop();players.forEach(p=>newHands[p.uid]=[newDeck.pop()]);
           g.mazo=newDeck;g.manos=newHands;g.cartaRobada=false;g.cartaJugada=false;g.jugadas=[];g.protegidos={};g.apuestasTheon={};g.eliminados={};g.forcedWinnerUid=null;g.bonusFinalUid=null;g.turnoUid=players[Math.floor(Math.random()*players.length)].uid;if(g.temporizadorActivo){g.tiempoRestanteMs=120000;g.turnoStartedAt=Date.now();g.partidaPausada=false;}
         }
       }
@@ -918,7 +921,7 @@
       auth.signInAnonymously().catch(e=>{setStatus("Error de autenticación","bad");fail("No se pudo iniciar sesión anónima",e);});
       wire();
       if(!timerInterval)timerInterval=window.setInterval(()=>{if(room?.juego)updateTimerUI(room.juego);},1000);
-      console.log("Aplicación cargada. Versión JDT v1.28.");
+      console.log("Aplicación cargada. Versión JDT v1.29.");
     } catch(e) {setStatus("Error de configuración","bad");fail("No se pudo iniciar la aplicación",e);}
   }
   document.addEventListener("DOMContentLoaded",boot);
