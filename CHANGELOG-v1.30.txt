@@ -5,3 +5,6 @@ JUEGO DE TRONOS — CAMBIOS v1.30
 - La situación ya no cancela la jugada ni devuelve la carta a la mano.
 - Se mantiene el comportamiento normal cuando existe al menos un objetivo válido.
 - Se conserva la compatibilidad del recuento de estadísticas con las salas creadas en v1.29.
+- Nuevo ajuste de selección de objetivos: cuando una carta necesita elegir un jugador y solo existe un objetivo válido, se selecciona automáticamente sin mostrar el desplegable.
+- Se aplica a todas las cartas que utilizan el selector común, incluidas partidas de dos jugadores, situaciones con solo dos jugadores vivos y situaciones en las que los jugadores protegidos dejan una única opción.
+- Si no existe ningún objetivo válido, se mantiene el comportamiento específico de cada carta (por ejemplo, las cartas 2 se descartan sin efecto según la corrección anterior).

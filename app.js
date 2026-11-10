@@ -597,6 +597,13 @@
       if(entry) entry.noEligibleTargets=true;
       return null;
     }
+    // Si solo existe un objetivo válido, se selecciona automáticamente.
+    // Evita mostrar un selector innecesario en partidas de dos jugadores,
+    // cuando quedan dos vivos o cuando la protección deja una única opción.
+    if(targets.length===1) {
+      if(entry) entry.noEligibleTargets=false;
+      return targets[0];
+    }
     const picked=await chooseFromDropdown(promptText,targets.map(p=>({value:p.uid,label:p.nombre||'Jugador'})),'Elige un jugador');
     if(entry) entry.noEligibleTargets=false;
     return picked?targets.find(p=>p.uid===picked)||null:null;
