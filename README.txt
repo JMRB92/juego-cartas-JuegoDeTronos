@@ -112,5 +112,5 @@ CAMBIO v1.29 — MAZO PARA DOS JUGADORES
 En partidas de dos jugadores se excluyen del mazo las cartas 01, 02, 12, 13, 18, 22, 33, 42, 61, 71 y 91. La exclusión se aplica al inicio y en cada nueva ronda, antes de quemar y repartir cartas. El catálogo mantiene visibles todas las cartas. En partidas de tres o más jugadores se utiliza el mazo completo.
 
 
-CAMBIO v1.30 — CARTAS DE VALOR 2 SIN OBJETIVO
+CAMBIO v1.31 — CARTAS DE VALOR 2 SIN OBJETIVO
 Si el jugador que juega una carta de valor 2 no tiene ningún rival seleccionable (porque solo queda vivo él o porque el único rival vivo está protegido), la carta se descarta y el efecto no se aplica. La jugada no se cancela ni se devuelve la carta a la mano.

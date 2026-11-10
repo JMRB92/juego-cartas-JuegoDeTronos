@@ -1,0 +1,11 @@
+JUEGO DE TRONOS — CAMBIOS v1.31
+
+- Catálogo de cartas: navegación anterior/siguiente en una fila propia, con recorrido circular desde la primera a la última carta y viceversa.
+- Pantalla de fin de partida: se mantienen únicamente las acciones «Volver a jugar» y «Salir».
+- La revancha se solicita desde «Volver a jugar» y solo comienza cuando el creador de la sala la acepta.
+- La aceptación se realiza mediante una transacción sobre la sala para evitar sobrescribir cambios concurrentes.
+- Al iniciar la revancha se comprueba quién sigue conectado; los jugadores desconectados se excluyen de la nueva partida y de la sala.
+- La nueva partida reinicia puntuaciones, ronda, manos, mazo, eliminaciones y estado de turno, manteniendo la configuración de la sala.
+- Se conserva el resto de funciones y reglas de la versión 1.30.
+
+Nota de validación: se ha revisado la sintaxis JavaScript y la estructura del paquete. La sincronización real entre varios dispositivos requiere una prueba en Firebase con varias sesiones conectadas.

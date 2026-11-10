@@ -84,3 +84,7 @@
 
 /* v1.28: contador por valor, estadísticas persistentes y consulta de cartas durante la partida */
 .round-counter-panel{padding-top:14px;padding-bottom:14px}.round-card-counter{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}.round-counter-item{display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 3px;border:1px solid var(--line,#4a4030);border-radius:7px;background:#171512;min-width:0}.round-counter-item strong{font-family:Cinzel,serif;color:var(--gold2,#e3c783);font-size:16px}.round-counter-item span{font-size:12px;font-weight:800;white-space:nowrap}.app-stats{font-size:11px;color:var(--muted,#b6aa98);line-height:1.5}.app-stats strong{color:var(--gold2,#e3c783)}.app-version{font-size:12px}@media(max-width:650px){.round-card-counter{grid-template-columns:repeat(5,minmax(0,1fr))}footer{gap:7px}.app-stats{font-size:10px}.game-header-actions #btn-ver-cartas{white-space:nowrap}}
+
+.final-actions{display:grid;gap:10px;margin-top:18px}.final-actions .full{margin-top:0}.final-actions .help{margin:4px 0 0}
+
+.catalog-navigation{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.catalog-navigation button{min-width:0;padding:11px 8px}.catalog-close-row{margin-top:10px}.catalog-close-row button{width:100%}.

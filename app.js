@@ -49,8 +49,8 @@
     snap.forEach(child=>{
       const data=child.val();
       // Solo salas creadas por v1.29 o posterior: no contar retrospectivamente salas antiguas.
-      if(['1.29','1.30'].includes(data?.versionCreacion) && data.estadisticaCreada!==true)jobs.push(registerCreatedRoomOnce(child.key));
-      if(['1.29','1.30'].includes(data?.versionCreacion) && data.estadisticaCreada===true && data.estadisticaFinalizada!==true && data.juego?.estado==='finalizada')jobs.push(registerFinishedRoomOnce(child.key,data));
+      if(['1.29','1.30','1.31'].includes(data?.versionCreacion) && data.estadisticaCreada!==true)jobs.push(registerCreatedRoomOnce(child.key));
+      if(['1.29','1.30','1.31'].includes(data?.versionCreacion) && data.estadisticaCreada===true && data.estadisticaFinalizada!==true && data.juego?.estado==='finalizada')jobs.push(registerFinishedRoomOnce(child.key,data));
     });
     await Promise.all(jobs);
   }
@@ -223,11 +223,11 @@
     const image=document.createElement('img');image.className='modal-card-image';image.src=card.image;image.alt=card.name;image.onerror=()=>image.remove();content.appendChild(image);
     const title=document.createElement('h2');title.textContent=`${card.value} · ${card.characteristic} · ${card.character}`;content.appendChild(title);
     const effect=document.createElement('p');effect.textContent=card.effect;content.appendChild(effect);
-    const nav=document.createElement('div');nav.className='button-row';
+    const nav=document.createElement('div');nav.className='catalog-navigation';nav.setAttribute('aria-label','Navegación entre cartas');
     const prev=document.createElement('button');prev.className='secondary';prev.textContent='← Carta anterior';prev.onclick=()=>showCatalogCard(catalogIndex-1);
     const next=document.createElement('button');next.className='secondary';next.textContent='Carta siguiente →';next.onclick=()=>showCatalogCard(catalogIndex+1);
     const close=document.createElement('button');close.className='primary';close.textContent='Cerrar';close.onclick=()=>{modal.classList.add('hidden');if(catalogDetailReturn){$('modal-reglas')?.classList.remove('hidden');catalogDetailReturn=false;}};
-    nav.append(prev,next,close);content.appendChild(nav);modal.classList.remove('hidden');
+    nav.append(prev,next);content.appendChild(nav);const closeRow=document.createElement('div');closeRow.className='catalog-close-row';closeRow.appendChild(close);content.appendChild(closeRow);modal.classList.remove('hidden');
   }
   function renderCatalog() {
     const root=$('catalogo-cartas');if(!root)return;root.replaceChildren();
@@ -307,7 +307,60 @@
     const max=ranking[0]?.points||0, winners=ranking.filter(p=>p.points===max);
     $('texto-ganador').textContent=winners.length===1?`Ganador: ${winners[0].name} · ${winners[0].points} puntos`:`Empate en cabeza: ${winners.map(p=>p.name).join(', ')} · ${max} puntos`;
     const list=$('ranking-final');list.replaceChildren();ranking.forEach((p,i)=>{const li=document.createElement('li');li.textContent=`${i+1}. ${p.name} — ${p.points} puntos`;if(p.points===max)li.classList.add('rank-winner');list.appendChild(li);});
+    const actions=$('acciones-finales');
+    if(actions){
+      actions.replaceChildren();
+      const requests=Object.values(room.solicitudesRevancha||{}).filter(r=>r?.solicitada===true).length;
+      const replay=document.createElement('button');replay.className='primary full';replay.textContent=(room.creadorUid===user?.uid && requests>0)?'Aceptar y comenzar':'Volver a jugar';
+      replay.onclick=()=>{if(room.creadorUid===user?.uid && requests>0)acceptRematch();else requestRematch();};actions.appendChild(replay);
+      const exit=document.createElement('button');exit.className='secondary full';exit.textContent='Salir';
+      exit.onclick=()=>leaveRoom();actions.appendChild(exit);
+      const status=document.createElement('p');status.className='help';
+      status.textContent=requests?`${requests} solicitud${requests===1?'':'es'} de revancha. ${room.creadorUid===user?.uid?'Pulsa el botón principal para aceptar y comenzar.':'El anfitrión debe aceptar para iniciar la nueva partida.'}`:'Pulsa «Volver a jugar» para solicitar otra partida. El anfitrión tendrá que aceptarla.';
+      actions.appendChild(status);
+    }
     modal.classList.remove('hidden');
+  }
+  async function requestRematch(){
+    try{
+      if(!currentCode||!user)throw new Error('No se ha encontrado la sala.');
+      const ref=db.ref(`salas/${currentCode}`),snap=await ref.once('value'),data=snap.val();
+      if(!data||data.juego?.estado!=='finalizada')throw new Error('La partida ya no está en la pantalla final.');
+      if(!data.jugadores?.[user.uid]||data.jugadores[user.uid].conectado===false)throw new Error('Tu jugador ya no está activo en esta sala.');
+      await ref.child(`solicitudesRevancha/${user.uid}`).set({solicitada:true,nombre:data.jugadores[user.uid].nombre||'Jugador',timestamp:firebase.database.ServerValue.TIMESTAMP});
+      say('Solicitud enviada. El anfitrión debe aceptar para comenzar otra partida.');
+    }catch(e){fail('No se pudo solicitar otra partida',e);}
+  }
+  async function acceptRematch(){
+    try{
+      if(!currentCode||!user)throw new Error('No se ha encontrado la sala.');
+      const ref=db.ref(`salas/${currentCode}`);
+      let rejection='';
+      const result=await ref.transaction(data=>{
+        rejection='';
+        if(!data){rejection='La sala ya no existe.';return;}
+        if(data.creadorUid!==user.uid){rejection='Solo el creador de la sala puede aceptar y comenzar otra partida.';return;}
+        if(data.juego?.estado!=='finalizada'){rejection='La partida no ha terminado.';return;}
+        const requests=Object.values(data.solicitudesRevancha||{}).filter(r=>r?.solicitada===true);
+        if(!requests.length){rejection='Ningún jugador ha solicitado volver a jugar.';return;}
+        const players=Object.entries(data.jugadores||{})
+          .filter(([uid,p])=>p?.conectado===true && p?.uid===uid)
+          .map(([uid,p])=>({...p,uid}));
+        if(players.length<2){rejection='Se necesitan al menos dos jugadores conectados para comenzar otra partida.';return;}
+        const deck=makeDeck(players.length).sort(()=>Math.random()-.5);
+        const cartaQuemada=deck.pop(),hands={},scores={};
+        players.forEach(p=>{hands[p.uid]=[deck.pop()];scores[p.uid]=0;});
+        const first=players[Math.floor(Math.random()*players.length)];
+        const game={ronda:1,mazo:deck,manos:hands,puntos:scores,turnoUid:first.uid,cartaRobada:false,cartaJugada:false,jugadas:[],historial:[],eliminados:{},cartaQuemada,temporizadorActivo:!!data.temporizadorActivo,tiempoRestanteMs:120000,turnoStartedAt:Date.now(),partidaPausada:false,estado:'jugando'};
+        addHistoryEntry(game,`Nueva partida aceptada por el anfitrión. Participan ${players.map(p=>p.nombre||'Jugador').join(', ')}. Empieza ${first.nombre||'el primer jugador'}.`);
+        // Los jugadores desconectados se excluyen de la nueva partida y de la sala.
+        data.jugadores=Object.fromEntries(players.map(p=>[p.uid,p]));
+        data.estado='jugando';data.juego=game;data.solicitudesRevancha={};
+        return cleanFirebaseValue(data);
+      },undefined,false);
+      if(!result.committed)throw new Error(rejection||'La sala ha cambiado. Actualiza e inténtalo de nuevo.');
+      say('Nueva partida iniciada con los jugadores que siguen conectados.');
+    }catch(e){fail('No se pudo iniciar la revancha',e);}
   }
   function renderReentryControls() {
     const button=$('btn-reingreso'),panel=$('panel-solicitudes-reingreso');
@@ -471,7 +524,7 @@
         const candidate=randomCode(), ref=db.ref(`salas/${candidate}`);
         const snap=await ref.once("value");
         if(snap.exists()) continue;
-        const data={codigo:candidate,creadorUid:user.uid,versionCreacion:'1.30',maxJugadores:max,puntosObjetivo:target,temporizadorActivo:$("temporizador-activo")?.value==="si",reingresoAbierto:true,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,conectado:true,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
+        const data={codigo:candidate,creadorUid:user.uid,versionCreacion:'1.31',maxJugadores:max,puntosObjetivo:target,temporizadorActivo:$("temporizador-activo")?.value==="si",reingresoAbierto:true,estado:"esperando",creadaEn:firebase.database.ServerValue.TIMESTAMP,jugadores:{[user.uid]:{uid:user.uid,nombre:name,conectado:true,unidoEn:firebase.database.ServerValue.TIMESTAMP}}};
         // El código es aleatorio; set crea el nodo. En colisión extremadamente improbable se comprueba antes.
         await ref.set(data); code=candidate;
       }
@@ -905,7 +958,7 @@
     $("btn-volver-inicio-crear").addEventListener("click",()=>showScreen("pantalla-inicio"));
     $("btn-volver-inicio-unirse").addEventListener("click",()=>showScreen("pantalla-inicio"));
     $("numero-jugadores").addEventListener("change",()=>{$("puntos-objetivo").value=Number($("numero-jugadores").value)<=4?5:3;});
-    $("btn-generar-partida").addEventListener("click",createRoom); $("btn-pausar")?.addEventListener("click",togglePause); $("cerrar-final")?.addEventListener("click",()=>$("pantalla-final")?.classList.add("hidden"));
+    $("btn-generar-partida").addEventListener("click",createRoom); $("btn-pausar")?.addEventListener("click",togglePause);
     $("btn-unirse").addEventListener("click",joinRoom);
     $("codigo-partida").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);});
     $("btn-copiar-codigo").addEventListener("click",async()=>{const code=$("codigo-sala").textContent;await copyText(code,"Código copiado: "+code);});
@@ -938,7 +991,7 @@
       auth.signInAnonymously().catch(e=>{setStatus("Error de autenticación","bad");fail("No se pudo iniciar sesión anónima",e);});
       wire();
       if(!timerInterval)timerInterval=window.setInterval(()=>{if(room?.juego)updateTimerUI(room.juego);},1000);
-      console.log("Aplicación cargada. Versión JDT v1.30.");
+      console.log("Aplicación cargada. Versión JDT v1.31.");
     } catch(e) {setStatus("Error de configuración","bad");fail("No se pudo iniciar la aplicación",e);}
   }
   document.addEventListener("DOMContentLoaded",boot);
